@@ -1,0 +1,38 @@
+{
+  "allow_groups": [
+    "basic_io",
+    "filesystem_stat_and_read",
+    "memory_alloc",
+    "process_lifecycle",
+    "signals_and_clocks",
+    "worktree_file_write"
+  ],
+  "architectures": [
+    "SCMP_ARCH_X86_64",
+    "SCMP_ARCH_AARCH64"
+  ],
+  "default_action": "SCMP_ACT_ERRNO",
+  "deny_explicit": [
+    "bpf",
+    "chroot",
+    "delete_module",
+    "finit_module",
+    "init_module",
+    "kexec_file_load",
+    "kexec_load",
+    "keyctl",
+    "mount",
+    "pivot_root",
+    "process_vm_readv",
+    "process_vm_writev",
+    "ptrace",
+    "reboot",
+    "setns",
+    "swapoff",
+    "swapon",
+    "umount2",
+    "unshare",
+    "userfaultfd"
+  ],
+  "schema_version": "0.1.0"
+}

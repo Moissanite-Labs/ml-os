@@ -1,0 +1,11 @@
+# Btrfs subvolume layout and read-only model vault for Moissanite-Labs/ml-os.
+# Persistent subvolumes survive 1-reboot @ root rollback untouched.
+LABEL=MLOS_BTRFS  /                         btrfs  subvol=@,compress=zstd:3,noatime,ssd,discard=async  0 0
+LABEL=MLOS_BTRFS  /var                      btrfs  subvol=@var,compress=zstd:3,noatime,ssd,discard=async  0 0
+LABEL=MLOS_BTRFS  /var/lib/mlos/workspace   btrfs  subvol=@workspace,compress=zstd:3,noatime,ssd,discard=async  0 0
+LABEL=MLOS_BTRFS  /var/lib/mlos/ledger      btrfs  subvol=@ledger,compress=zstd:3,noatime,ssd,discard=async  0 0
+LABEL=MLOS_BTRFS  /var/lib/mlos/models      btrfs  subvol=@models,ro,nosuid,nodev,noexec,compress=zstd:3,noatime  0 0
+LABEL=MLOS_BTRFS  /var/lib/mlos/experiments btrfs  subvol=@experiments,compress=zstd:3,noatime,ssd,discard=async  0 0
+LABEL=MLOS_BTRFS  /var/lib/mlos/snapshots   btrfs  subvol=@snapshots,compress=zstd:3,noatime,ssd,discard=async  0 0
+tmpfs             /tmp                      tmpfs  size=4G,nosuid,nodev  0 0
+# zram-generator target: 8 GiB zstd swap

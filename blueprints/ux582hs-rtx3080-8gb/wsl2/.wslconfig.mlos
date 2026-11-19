@@ -1,0 +1,10 @@
+# Stage 0 non-destructive WSL2 resource cap for Windows 11 pre-dual-boot CUDA workbench.
+[wsl2]
+memory=24GB
+processors=16
+swap=8GB
+localhostForwarding=true
+
+[experimental]
+autoMemoryReclaim=gradual
+sparseVhd=true

@@ -1,0 +1,37 @@
+[Unit]
+Description=ml-os L3 Fail-Closed Inference Gatekeeper (warp-modeld)
+After=mlos-llama-server.service
+Requires=mlos-llama-server.service
+
+[Service]
+Type=simple
+Slice=mlos-infer.slice
+OOMScoreAdjust=-500
+User=mlos-modeld
+Group=mlos-rpc
+RuntimeDirectory=mlos-modeld
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/warp-modeld serve --config /etc/mlos/modeld.json
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadOnlyPaths=/var/lib/mlos/models /etc/mlos/canaries /etc/mlos/keys /etc/mlos/modeld.json
+ReadWritePaths=/var/lib/mlos/ledger /run/mlos-modeld
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

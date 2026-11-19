@@ -1,0 +1,13 @@
+[Unit]
+Description=ml-os Pre-Adaptation Btrfs Snapshot and UKI Checkpoint
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mlos-recovery.sh checkpoint pre-adaptation
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=sysinit.target

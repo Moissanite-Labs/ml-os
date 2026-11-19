@@ -1,0 +1,10 @@
+[Unit]
+Description=ml-os Verified Local Inference Slice (warp-modeld + llama-server)
+Before=slices.target
+
+[Slice]
+MemoryAccounting=yes
+CPUAccounting=yes
+MemoryMin=2G
+MemoryHigh=12G
+MemoryMax=16G

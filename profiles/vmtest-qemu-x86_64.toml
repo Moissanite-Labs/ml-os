@@ -1,0 +1,149 @@
+# Phase 2 QEMU/KVM acceptance profile validating the fixed Ring 0 safety core
+# before any bare-metal installation.
+
+schema = "mlos-profile/v0.1"
+profile_id = "vmtest-qemu-x86_64"
+role = "vmtest-gate"
+base_distro = "arch-pinned"
+
+[distro_pin]
+builder = "mkosi"
+arch_snapshot_date = "2026-11-01"
+lean_toolchain = "leanprover/lean4:v4.35.0"
+llama_cpp_min_build = 11146
+cuda_arch = "cpu"
+
+[hardware]
+manufacturer = "QEMU"
+model = "Standard PC (Q35 + ICH9)"
+architecture = "x86_64"
+cpu_model = "QEMU Virtual CPU"
+cpu_cores = 4
+cpu_threads = 8
+ram_mib = 16384
+ram_gib = 16
+zram_gib = 4
+igpu_vendor = "virtio"
+igpu_model = "Virtio GPU"
+igpu_pci = "0000:00:01.0"
+igpu_drm_by_path = "/dev/dri/by-path/pci-0000:00:01.0-card"
+dgpu_present = false
+dgpu_vendor = "none"
+dgpu_model = "none"
+dgpu_pci = "none"
+dgpu_arch = "none"
+dgpu_vram_mib = 0
+dgpu_max_power_w = 0
+nvme_model = "QEMU NVMe Ctrl"
+nvme_capacity_gb = 64
+form_factor = "virtual-machine"
+
+[hardware.displays]
+dual_screen = false
+primary_connector = "Virtual-1"
+primary_panel_type = "virtual"
+primary_resolution = "1920x1080"
+primary_refresh_hz = 60
+primary_scale = 1
+secondary_connector = "none"
+secondary_name = "none"
+secondary_panel_type = "none"
+secondary_resolution = "none"
+secondary_refresh_hz = 0
+secondary_scale = 1
+screenpad_sysfs_led = "none"
+acpi_lid_glob = "none"
+aas_plus_intake_requires_lid_open = false
+
+[ring0_locked]
+allow_sudo = false
+tool_executor_required = true
+dgpu_desktop_vram_mib = 0
+exclusive_gpu_lease = true
+require_loopback_inference = true
+require_uki_rollback = true
+bare_metal_repartition_unlocked = false
+lsm_list = [
+    "landlock",
+    "lockdown",
+    "yama",
+    "integrity",
+    "apparmor",
+    "bpf",
+]
+required_kernel_params = [
+    "console=ttyS0",
+    "rootfstype=btrfs",
+    "rootflags=subvol=@,compress=zstd:3",
+]
+readonly_mounts = [
+    "/var/lib/mlos/models",
+    "/etc/mlos/canaries",
+    "/usr",
+]
+btrfs_required_subvolumes = [
+    "@",
+    "@snapshots",
+    "@models",
+    "@experiments",
+    "@ledger",
+    "@var",
+    "@workspace",
+]
+protected_ancestors_mode = "0755"
+
+[slices.formal]
+unit = "mlos-formal.slice"
+memory_high_gib = 6
+memory_max_gib = 8
+tasks_max = 256
+oom_policy = "kill"
+allow_dgpu = false
+lean_toolchain = "leanprover/lean4:v4.35.0"
+
+[slices.infer]
+unit = "mlos-infer.slice"
+memory_min_gib = 1
+memory_high_gib = 4
+memory_max_gib = 6
+oom_score_adj = -500
+allow_dgpu = false
+
+[slices.compute]
+unit = "mlos-compute.slice"
+memory_high_gib = 6
+memory_max_gib = 8
+max_parallel_large_svd_workers = 1
+allow_dgpu = false
+
+[slices.agents]
+unit = "mlos-agents.slice"
+memory_high_gib = 3
+memory_max_gib = 4
+cpu_quota_percent = 400
+allow_dgpu = false
+
+[thermal_profiles.quiet-edit]
+fan_profile = "Quiet"
+dgpu_power_cap_w = 0
+lock_sm_clocks = false
+sm_clock_mhz = 0
+require_owner_clock_lock_approval = false
+require_lid_open = false
+lid_closed_fallback_profile = "quiet-edit"
+screenpad_default_brightness = 0
+
+[ring2_user]
+display_mode = "headless-ssh"
+thermal_profile = "quiet-edit"
+dgpu_power_cap_w = 0
+owner_clock_lock_approved = false
+remote_tunnel = "ssh-only"
+active_packs = ["formal-verification"]
+extra_packages = ["qemu-guest-agent", "socat"]
+
+[ring2_user.dual_screen]
+bind_touch_per_connector = true
+oled_idle_blank_sec = 0
+screenpad_role = "disabled"
+fallback_to_headless_on_dgpu_leak = true

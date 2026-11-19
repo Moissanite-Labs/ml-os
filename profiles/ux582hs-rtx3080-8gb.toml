@@ -1,0 +1,170 @@
+# Declarative hardware and 3-ring safety profile for geminus (ASUS ZenBook Pro Duo UX582HS).
+# Grounded in measured pre-install hardware inventory from Moissanite-Labs/MDE issue 4
+# and architectural invariants from siliconcordat/warp issue 4.
+
+schema = "mlos-profile/v0.1"
+profile_id = "ux582hs-rtx3080-8gb"
+role = "ml-workbench-8gb"
+base_distro = "arch-pinned"
+
+[distro_pin]
+builder = "mkosi"
+arch_snapshot_date = "2026-11-01"
+lean_toolchain = "leanprover/lean4:v4.35.0"
+llama_cpp_min_build = 11146
+cuda_arch = "sm_86"
+
+[hardware]
+manufacturer = "ASUSTeK COMPUTER INC."
+model = "ZenBook Pro Duo UX582HS"
+architecture = "x86_64"
+cpu_model = "11th Gen Intel Core i9-11900H @ 2.50 GHz"
+cpu_cores = 8
+cpu_threads = 16
+ram_mib = 32459
+ram_gib = 32
+zram_gib = 8
+igpu_vendor = "intel"
+igpu_model = "Intel UHD Graphics"
+igpu_pci = "0000:00:02.0"
+igpu_drm_by_path = "/dev/dri/by-path/pci-0000:00:02.0-card"
+dgpu_present = true
+dgpu_vendor = "nvidia"
+dgpu_model = "NVIDIA GeForce RTX 3080 Laptop GPU"
+dgpu_pci = "0000:01:00.0"
+dgpu_arch = "sm_86"
+dgpu_vram_mib = 8192
+dgpu_max_power_w = 115
+nvme_model = "Samsung MZVL21T0HCLR"
+nvme_capacity_gb = 1000
+form_factor = "dual-screen-aas-plus"
+
+[hardware.displays]
+dual_screen = true
+primary_connector = "eDP-1"
+primary_panel_type = "oled"
+primary_resolution = "3840x2160"
+primary_refresh_hz = 60
+primary_scale = 2
+secondary_connector = "DP-1"
+secondary_name = "ScreenPad Plus"
+secondary_panel_type = "ips-matte"
+secondary_resolution = "3840x1100"
+secondary_refresh_hz = 60
+secondary_scale = 2
+screenpad_sysfs_led = "/sys/class/leds/asus::screenpad/brightness"
+acpi_lid_glob = "/proc/acpi/button/lid/*/state"
+aas_plus_intake_requires_lid_open = true
+
+[ring0_locked]
+allow_sudo = false
+tool_executor_required = true
+dgpu_desktop_vram_mib = 0
+exclusive_gpu_lease = true
+require_loopback_inference = true
+require_uki_rollback = true
+bare_metal_repartition_unlocked = false
+lsm_list = [
+    "landlock",
+    "lockdown",
+    "yama",
+    "integrity",
+    "apparmor",
+    "bpf",
+]
+required_kernel_params = [
+    "rootfstype=btrfs",
+    "rootflags=subvol=@,compress=zstd:3",
+    "nvidia-drm.modeset=1",
+]
+readonly_mounts = [
+    "/var/lib/mlos/models",
+    "/etc/mlos/canaries",
+    "/usr",
+]
+btrfs_required_subvolumes = [
+    "@",
+    "@snapshots",
+    "@models",
+    "@experiments",
+    "@ledger",
+    "@var",
+    "@workspace",
+]
+protected_ancestors_mode = "0755"
+
+[slices.formal]
+unit = "mlos-formal.slice"
+memory_high_gib = 16
+memory_max_gib = 22
+tasks_max = 512
+oom_policy = "kill"
+allow_dgpu = false
+lean_toolchain = "leanprover/lean4:v4.35.0"
+
+[slices.infer]
+unit = "mlos-infer.slice"
+memory_min_gib = 2
+memory_high_gib = 12
+memory_max_gib = 16
+oom_score_adj = -500
+allow_dgpu = true
+
+[slices.compute]
+unit = "mlos-compute.slice"
+memory_high_gib = 24
+memory_max_gib = 28
+max_parallel_large_svd_workers = 1
+allow_dgpu = true
+
+[slices.agents]
+unit = "mlos-agents.slice"
+memory_high_gib = 8
+memory_max_gib = 12
+cpu_quota_percent = 600
+allow_dgpu = false
+
+[thermal_profiles.quiet-edit]
+fan_profile = "Quiet"
+dgpu_power_cap_w = 70
+lock_sm_clocks = false
+sm_clock_mhz = 0
+require_owner_clock_lock_approval = false
+require_lid_open = false
+lid_closed_fallback_profile = "quiet-edit"
+screenpad_default_brightness = 120
+
+[thermal_profiles.sustained-train]
+fan_profile = "Performance"
+dgpu_power_cap_w = 95
+lock_sm_clocks = false
+sm_clock_mhz = 0
+require_owner_clock_lock_approval = false
+require_lid_open = true
+lid_closed_fallback_profile = "quiet-edit"
+screenpad_default_brightness = 64
+
+[thermal_profiles.benchmark-locked]
+fan_profile = "Performance"
+dgpu_power_cap_w = 95
+lock_sm_clocks = true
+sm_clock_mhz = 1350
+require_owner_clock_lock_approval = true
+require_lid_open = true
+lid_closed_fallback_profile = "quiet-edit"
+screenpad_default_brightness = 0
+
+[ring2_user]
+display_mode = "headless-ssh"
+thermal_profile = "sustained-train"
+dgpu_power_cap_w = 95
+owner_clock_lock_approved = false
+remote_tunnel = "tailscale"
+active_packs = ["formal-verification"]
+extra_packages = ["tmux", "ripgrep", "fd"]
+
+[ring2_user.dual_screen]
+bind_touch_per_connector = true
+oled_idle_blank_sec = 180
+screenpad_role = "ips-telemetry-strip"
+fallback_to_headless_on_dgpu_leak = true

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Deterministic post-install setup for Moissanite-Labs/ml-os.
+install -d -m 0755 /etc/mlos /etc/mlos/canaries /etc/mlos/keys
+install -d -m 0755 /var/lib/mlos /var/lib/mlos/models /var/lib/mlos/snapshots /var/lib/mlos/experiments /var/lib/mlos/workspace
+install -d -m 0750 /var/lib/mlos/ledger
+
+if ! getent group mlos-rpc >/dev/null 2>&1; then
+    groupadd --system mlos-rpc
+fi
+
+for svc_user in mlos-llama mlos-modeld; do
+    if ! id -u "${svc_user}" >/dev/null 2>&1; then
+        useradd --system --no-create-home --shell /usr/bin/nologin "${svc_user}"
+    fi
+done
+
+chown root:root /etc/mlos /etc/mlos/canaries /var/lib/mlos/models
+chmod 0755 /etc/mlos/canaries /var/lib/mlos/models
+
+chown root:mlos-modeld /etc/mlos/keys
+chmod 0750 /etc/mlos/keys
+
+chown mlos-modeld:mlos-modeld /var/lib/mlos/ledger
+chmod 0750 /var/lib/mlos/ledger
+
+cat >/etc/profile.d/mlos-sandbox.sh <<'EOF'
+export MLOS_TOOL_EXECUTOR_REQUIRED=1
+export WARP_TOOL_EXECUTOR_REQUIRED=1
+export MLOS_SANDBOX_POLICY=/etc/mlos/landlock-policy.json
+EOF
+chmod 0644 /etc/profile.d/mlos-sandbox.sh

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml-os"
+version = "0.1.0"
+description = "Adaptive 3-ring machine learning and formal verification experimentation workbench OS"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "ahraz", email = "38987266+ahrazzle@users.noreply.github.com" },
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+mlos = "ml_os.cli:main"
+mlos-adapt = "ml_os.cli:main_adapt"
+mlos-probe = "ml_os.cli:main_probe"
+mlos-compile = "ml_os.cli:main_compile"
+mlos-gpu-lease = "ml_os.cli:main_gpu_lease"
+mlos-stamp-run = "ml_os.cli:main_stamp_run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = [
+    "ignore:assertions not in test modules or plugins will be ignored:pytest.PytestConfigWarning",
+]

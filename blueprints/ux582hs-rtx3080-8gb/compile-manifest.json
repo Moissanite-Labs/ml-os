@@ -1,0 +1,33 @@
+{
+  "artifact_count": 22,
+  "artifacts": {
+    "display/90-mlos-igpu-touch.rules": "251614a613aa7a36315b91d5730ed5c8c3dbde9bc5d5b9d83b94aff4f2f3aa82",
+    "display/hyprland-dual-screen-igpu.conf": "583becb2228aa454ddd86c682f8ad4110a5cccaa45bfe2baee08f807a805cf70",
+    "display/mlos-dgpu-zero-vram-guard.sh": "6e2ff4e199ab727d315a9e20da3a267967d2dbdeac87c89121e74c6298003d05",
+    "display/mlos-display-env.conf": "0aaefe6764f23175ca79a2b014e4d813e5076377ca5cd694107ecf5c883781ea",
+    "mkosi/harden-image-modes.sh": "69871e9bb22eda6df1cf1f294962d1a4106e5f98ffc8c3b9e77147e16904f432",
+    "mkosi/mkosi.conf": "9c8e429b710afd1dcbb5680a6c257b8ed8e6c9a777e91d251e4a308c3732ae32",
+    "mkosi/mkosi.postinst": "608ceffd673809328d70d6178bd16c8ae59c7d34458316b295c6b0fd2c0a603e",
+    "recovery/mlos-recovery.sh": "d168b1b489d9bb149e6a8a3ca4ad5062f917dc70797477d2bdab2344e0f75897",
+    "sandbox/landlock-policy.json": "3625064c4d76bf04e35089ddd715849c5b66a18e84d95189dbae6def808f5095",
+    "sandbox/mlos-sandbox-exec.sh": "6175e89e75a16fc54aa36b1d780dae450364890e03e7e6c36cc3bbf1f31d2667",
+    "sandbox/seccomp-tool-filter.json": "806b91e0fa65835df929048911d18cc16cf5a7e95c8d9a99d870ff53a7e4cbf9",
+    "storage/fstab.mlos": "3f054638f335b8710664dba02de9f387ec3a3c98654c7c4694ed93e3f4c7bec7",
+    "systemd/mlos-agents.slice": "935de94167df40d82e4c02e6789aea889e1ba2440127d3ecf091539edd2c1480",
+    "systemd/mlos-compute.slice": "609a7f4dee6ab8ab07079161fba3936932e2cc71ca022b0964336b3f9aaaf1de",
+    "systemd/mlos-formal.slice": "0a0239097d5862771411255eadd78cb9e24edfacb7331c5c3f427944e72de429",
+    "systemd/mlos-infer.slice": "e7c1abbf1099239d0c7776d6585f44ad1cbc125fba0b1ca399b9310d263d8c63",
+    "systemd/mlos-llama-server.service": "54b25c1b2812616463411d8f3943c3f99e11bb456c21780474905eb00e6ac5fc",
+    "systemd/mlos-modeld.service": "b9e6fe90ce2dbb3a67bce9589ee6fe5d7adaeddf9832e9bb508c7c1cabc8bd5e",
+    "systemd/mlos-recovery-checkpoint.service": "8253f7b461dccf58e559956a809e6f78cfea9f8dac3ee65bdd274bb6ad06254b",
+    "thermal/mlos-thermal-apply.sh": "e87d7c50d2ff00b8a2aff8c0245c654716d51fe952c7c567c9ddcb5b1d3c36f1",
+    "thermal/thermal-profiles.json": "2a6c35c8752d8c2a7578154d2e215424bd59b4aa114e27b50fb68029821b5f8a",
+    "wsl2/.wslconfig.mlos": "6b5625da0a988d15dae6593a04d27e46b44a1c5e33f6fe8c023d68caf236565e"
+  },
+  "artifacts_tree_sha256": "dbc40f26482c2900c9389bae1454f04aeb8fe9391bd922f545afa2e6f4800819",
+  "cuda_arch": "sm_86",
+  "lean_toolchain": "leanprover/lean4:v4.35.0",
+  "profile_id": "ux582hs-rtx3080-8gb",
+  "profile_sha256": "566c9192d38682a0ec4d652a63a3510aaefb9dc20ef91ae9bdc6d4abbbf5cbe2",
+  "schema": "mlos-compile-manifest/v0.1"
+}

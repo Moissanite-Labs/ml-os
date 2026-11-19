@@ -1,0 +1,9 @@
+[Unit]
+Description=ml-os Serialized CPU float64 Compiler and CUDA Experiment Slice
+Before=slices.target
+
+[Slice]
+MemoryAccounting=yes
+CPUAccounting=yes
+MemoryHigh=24G
+MemoryMax=28G
