@@ -1,0 +1,33 @@
+{
+  "abi_version": 4,
+  "default_action": "deny",
+  "env_gate": "MLOS_TOOL_EXECUTOR_REQUIRED=1",
+  "fail_closed_if_unsupported": true,
+  "network": {
+    "unshare_net_default": true,
+    "zone_a_allow_network": false,
+    "zone_b_requires_egress_proxy": true
+  },
+  "rules": {
+    "explicit_deny": [
+      "/efi",
+      "/etc/mlos/keys",
+      "/run/mlos-modeld",
+      "/var/lib/mlos/ledger",
+      "/var/lib/mlos/snapshots"
+    ],
+    "read_only": [
+      "/etc/mlos/canaries",
+      "/etc/ssl/certs",
+      "/lib",
+      "/lib64",
+      "/usr",
+      "/var/lib/mlos/models"
+    ],
+    "read_write": [
+      "$MLOS_EPHEMERAL_WORKTREE",
+      "/tmp"
+    ]
+  },
+  "schema_version": "0.1.0"
+}

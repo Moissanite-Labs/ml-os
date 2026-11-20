@@ -1,0 +1,42 @@
+{
+  "aas_plus_intake_requires_lid_open": true,
+  "acpi_lid_glob": "/proc/acpi/button/lid/*/state",
+  "active_dgpu_power_cap_w": 95,
+  "active_profile": "sustained-train",
+  "owner_clock_lock_approved": false,
+  "profile_id": "ux582hs-rtx3080-8gb",
+  "profiles": {
+    "benchmark-locked": {
+      "dgpu_power_cap_w": 95,
+      "fan_profile": "Performance",
+      "lid_closed_fallback_profile": "quiet-edit",
+      "lock_sm_clocks": true,
+      "require_lid_open": true,
+      "require_owner_clock_lock_approval": true,
+      "screenpad_default_brightness": 0,
+      "sm_clock_mhz": 1350
+    },
+    "quiet-edit": {
+      "dgpu_power_cap_w": 70,
+      "fan_profile": "Quiet",
+      "lid_closed_fallback_profile": "quiet-edit",
+      "lock_sm_clocks": false,
+      "require_lid_open": false,
+      "require_owner_clock_lock_approval": false,
+      "screenpad_default_brightness": 120,
+      "sm_clock_mhz": 0
+    },
+    "sustained-train": {
+      "dgpu_power_cap_w": 95,
+      "fan_profile": "Performance",
+      "lid_closed_fallback_profile": "quiet-edit",
+      "lock_sm_clocks": false,
+      "require_lid_open": true,
+      "require_owner_clock_lock_approval": false,
+      "screenpad_default_brightness": 64,
+      "sm_clock_mhz": 0
+    }
+  },
+  "schema": "mlos-thermal-profiles/v0.1",
+  "screenpad_sysfs_led": "/sys/class/leds/asus::screenpad/brightness"
+}

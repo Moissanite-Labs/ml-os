@@ -1,0 +1,14 @@
+[Unit]
+Description=ml-os Sandboxed Agent Tool Execution Slice (0 MiB dGPU VRAM)
+Before=slices.target
+
+[Slice]
+MemoryAccounting=yes
+CPUAccounting=yes
+MemoryHigh=8G
+MemoryMax=12G
+CPUQuota=600%
+DevicePolicy=closed
+DeviceAllow=/dev/null rw
+DeviceAllow=/dev/zero rw
+DeviceAllow=/dev/urandom r

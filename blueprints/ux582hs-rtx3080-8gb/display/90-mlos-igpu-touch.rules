@@ -1,0 +1,4 @@
+# Udev tags for iGPU-primary compositor selection and ASUS ScreenPad Plus backlight control.
+SUBSYSTEM=="drm", KERNELS=="0000:00:02.0", TAG+="mlos-primary-igpu"
+SUBSYSTEM=="drm", KERNELS=="0000:01:00.0", TAG-="mutter-device-preferred-primary", ENV{MLOS_COMPUTE_ONLY_DGPU}="1"
+SUBSYSTEM=="leds", KERNEL=="asus::screenpad", MODE="0664", GROUP="video"

@@ -1,0 +1,16 @@
+[Unit]
+Description=ml-os Formal Verification Slice (leanprover/lean4:v4.35.0, 0 MiB dGPU VRAM)
+Before=slices.target
+
+[Slice]
+MemoryAccounting=yes
+CPUAccounting=yes
+TasksAccounting=yes
+MemoryHigh=16G
+MemoryMax=22G
+TasksMax=512
+ManagedOOMMemoryPressure=kill
+DevicePolicy=closed
+DeviceAllow=/dev/null rw
+DeviceAllow=/dev/zero rw
+DeviceAllow=/dev/urandom r

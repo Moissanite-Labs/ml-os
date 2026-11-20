@@ -1,0 +1,47 @@
+[Unit]
+Description=ml-os Local llama-server Backend (sm_86)
+After=network.target
+Before=mlos-modeld.service
+Conflicts=mlos-gpu-train.target
+
+[Service]
+Type=simple
+Slice=mlos-infer.slice
+OOMScoreAdjust=-500
+User=mlos-llama
+Group=mlos-llama
+RuntimeDirectory=mlos-llama-slots
+RuntimeDirectoryMode=0700
+EnvironmentFile=/etc/mlos/llama-server.env
+ExecStart=/usr/local/bin/llama-server \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --model ${MLOS_BASE_MODEL_GGUF} \
+    --lora-scaled ${MLOS_LORA_SCALED_SPECS} \
+    --lora-init-without-apply \
+    --slots \
+    --slot-save-path /run/mlos-llama-slots \
+    --no-cache-idle-slots \
+    --slot-prompt-similarity 0.0 \
+    --ctx-size ${MLOS_CTX_SIZE} \
+    --ctx-checkpoints ${MLOS_CTX_CHECKPOINTS} \
+    --n-gpu-layers 99
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadOnlyPaths=/var/lib/mlos/models /etc/mlos/llama-server.env
+InaccessiblePaths=/etc/mlos/keys /etc/mlos/canaries /var/lib/mlos/ledger /run/mlos-modeld
+RestrictAddressFamilies=AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
