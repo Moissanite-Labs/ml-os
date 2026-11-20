@@ -95,7 +95,8 @@ def main():
     think = ll.tokenize("<think>")
     out["smoke_prompt"] = {"n_tokens": len(T), "nl2": nl2, "fence": fence, "think": think,
                            "pieces": {"nl2": [ll.piece(t) for t in nl2], "fence": [ll.piece(t) for t in fence], "think": [ll.piece(t) for t in think]}}
-    assert len(nl2) == 1 and len(fence) == 1 and len(think) == 1, (nl2, fence, think)
+    if not (len(nl2) == 1 and len(fence) == 1 and len(think) == 1):
+        raise AssertionError(f"fork tokens must be single pieces: {(nl2, fence, think)}")
     NL, FENCE, THINK = nl2[0], fence[0], think[0]
     n = len(T)
     ALL = list(range(8))
@@ -182,9 +183,11 @@ def main():
     flat = flatten_states(jobs)
     hmeta = json.load(open(HARVEST_PREFIX + ".meta.json", encoding="utf-8"))
     hstates = hmeta["states"]
-    assert len(flat) == len(hstates), (len(flat), len(hstates))
+    if len(flat) != len(hstates):
+        raise AssertionError(f"state count mismatch: {(len(flat), len(hstates))}")
     for (ji, st), hs in zip(flat, hstates):
-        assert jobs[ji]["id"] == hs["id"] and st["pos"] == hs["pos"] and len(jobs[ji]["tokens"]) == hs["n_tokens"], (jobs[ji]["id"], hs["id"])
+        if not (jobs[ji]["id"] == hs["id"] and st["pos"] == hs["pos"] and len(jobs[ji]["tokens"]) == hs["n_tokens"]):
+            raise AssertionError(f"state alignment mismatch: {(jobs[ji]['id'], hs['id'])}")
     S, d = len(flat), ll.n_embd
     job_states: dict[int, list[int]] = {}
     for si, (ji, st) in enumerate(flat):

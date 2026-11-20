@@ -1,7 +1,10 @@
-"""Packet 010 (revised after review round 1): Phase 3 Windows-side sustained-load thermal run (ml-os#4 item 3).
+"""Packet 010 (revised after review rounds 1 and 2): Phase 3 Windows-side sustained-load thermal run (ml-os#4 item 3).
 
 Built from the raw artifacts of the run that started 2026-11-19 16:39:59 local. The run ABORTED on its
 own safety rule after 743 s. Gates and notes are computed from the data.
+Round-2 corrections applied: brief power samples reach 96.6 W (the 95 W cap was touched, not sustained);
+the plateau's CPU-load attribution is an inference, not a measurement; the stall monitor kept posting
+after the excursion; "no second GPU process" was not recorded.
 """
 import csv
 import datetime as dt
@@ -20,9 +23,11 @@ rows = list(csv.DictReader((W / "thermal-nvsmi.csv").open(encoding="utf-8")))
 load = [r for r in rows if r["phase"] == "sustained_load"]
 
 # Times of the last activity of the agents that shared this machine, from the swarm's own records
-# (system messages 21:50:33Z / 21:50:35Z for the two Opus workers; board post #43 at 16:50:58 local).
+# (system messages 21:50:33Z / 21:50:35Z for the two Opus workers; board post #43 at 16:50:58 local;
+# the monitor session's last_post_time 2026-11-19 17:20:30, board seq 47).
 OPUS_WORKERS_STOPPED_LOCAL = "2026/11/19 16:50:33"
 LAST_WORKER_POST_LOCAL = "2026/11/19 16:50:58"
+STALL_MONITOR_LAST_POST_LOCAL = "2026/11/19 17:20:30"
 
 
 def f(r, k):
@@ -117,7 +122,9 @@ derived = {
     "idle_temp_before_c": f(init[0], "temperature.gpu") if init else None, "idle_temp_after_unload_c": f(after[-1], "temperature.gpu") if after else None,
     "host_activity": {"opus_workers_stopped_at_t_s": round(rel_of(OPUS_WORKERS_STOPPED_LOCAL), 1), "last_worker_board_post_at_t_s": round(rel_of(LAST_WORKER_POST_LOCAL), 1),
                       "first_84c_after_last_post_s": round(t84 - rel_of(LAST_WORKER_POST_LOCAL), 1), "first_84c_after_opus_stop_s": round(t84 - rel_of(OPUS_WORKERS_STOPPED_LOCAL), 1),
-                      "source": "swarm system messages and board timestamps; whole-second resolution"},
+                      "stall_monitor_last_post_at_t_s": round(rel_of(STALL_MONITOR_LAST_POST_LOCAL), 1),
+                      "cpu_load_of_other_agents": "not recorded",
+                      "source": "swarm system messages, board timestamps and the monitor session's last_post_time (board seq 47); whole-second resolution"},
 }
 ha = derived["host_activity"]
 ae = derived["after_excursion"]
@@ -154,16 +161,17 @@ w2["derived"] = derived
 (OUT / "010-thermal-workload-with-minutes.json").write_text(json.dumps(w2, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 notes = [
     "Result: the run did NOT complete 15 minutes. It aborted itself at 743 s on the 87 C / 30 s rule and released the GPU cleanly. Three of six gates fail; this packet reports that as the finding.",
-    f"Plateau (t+120 s to t+660 s): {derived['steady_temp_mean_c']} C mean, {derived['steady_temp_max_c']:.0f} C max, drifting up by {derived['steady_temp_drift_c_per_min']:.2f} C per minute, at {derived['steady_power_mean_w']} W and {derived['steady_sm_clock_mean_mhz']:.0f} MHz with SwPowerCap (0x4) active on nearly every sample. There were {derived['early_samples_at_84c_before_t120']} samples at 84 C during warm-up. Power settled near 79 W; the stamp records no power limit, and the profile's dgpu_power_cap_w=95 W was not exercised.",
+    f"Plateau (t+120 s to t+660 s): {derived['steady_temp_mean_c']} C mean, {derived['steady_temp_max_c']:.0f} C max, drifting up by {derived['steady_temp_drift_c_per_min']:.2f} C per minute, at {derived['steady_power_mean_w']} W and {derived['steady_sm_clock_mean_mhz']:.0f} MHz with SwPowerCap (0x4) active on nearly every sample. There were {derived['early_samples_at_84c_before_t120']} samples at 84 C during warm-up. Sustained power settled near {derived['steady_power_mean_w']} W; brief samples reach {t['power_max_w']:.1f} W ({sum(1 for r in rows if f(r, 'power.draw') > 95)} samples above 95 W), so the profile's dgpu_power_cap_w=95 W was touched but not sustained. The stamp records no power limit.",
     f"Excursion: the first 84 C sample after the plateau is at t+{t84:.1f} s and 87 C is reached {t87 - t84:.1f} s later, at t+{t87:.1f} s. SwThermalSlowdown begins at t+{tsw:.1f} s. Power then falls to {ae['power_mean_w']} W and SM clock to {ae['sm_clock_mean_mhz']:.0f} MHz, and the temperature keeps RISING, from {ae['temp_mean_first_15s_c']} C just after onset to {ae['temp_mean_last_9s_c']} C in the last 9 s at {ae['power_mean_last_9s_w']} W. It had not reached equilibrium when the run aborted.",
-    f"Nothing changes on the GPU in the 60 s before onset: {derived['last_60s_before_excursion']['power_mean_w']} W, {derived['last_60s_before_excursion']['sm_clock_mean_mhz']} MHz, {derived['last_60s_before_excursion']['util_mean_pct']}% utilisation, {derived['last_60s_before_excursion']['memory_used_mib_max']:.0f} MiB, no second GPU process.",
-    f"Something did change on the host. The other agents sharing this machine stopped: the two Opus workers at t+{ha['opus_workers_stopped_at_t_s']:.0f} s, and the last post from any worker at t+{ha['last_worker_board_post_at_t_s']:.0f} s. The first 84 C sample follows {ha['first_84c_after_last_post_s']:.0f} s after that last post. The plateau was therefore measured while unrecorded CPU work was going on, and the excursion follows its end.",
-    "Interpretation (inference, not measured): a step of several degrees within seconds at constant GPU power, with no recovery after a one-third power cut, is not GPU self-heating at constant cooling. It points to a loss of cooling capacity. A fan curve keyed to CPU temperature would fit the timing: when CPU work stopped the fans may have slowed while the GPU was still at 79 W. Coincidence fits too. This trace has no CPU temperature, fan speed or power-mode channel, so the cause is undetermined.",
-    f"Idle GPU temperature was {derived['idle_temp_before_c']:.0f} C before the run and {derived['idle_temp_after_unload_c']:.0f} C seconds after unloading, which shows how much heat the chassis was holding.",
+    f"Nothing recorded changes on the GPU in the 60 s before onset: {derived['last_60s_before_excursion']['power_mean_w']} W, {derived['last_60s_before_excursion']['sm_clock_mean_mhz']} MHz, {derived['last_60s_before_excursion']['util_mean_pct']}% utilisation, {derived['last_60s_before_excursion']['memory_used_mib_max']:.0f} MiB. Whether a second process shared the GPU was not recorded.",
+    f"What is recorded on the host: the two Opus workers stopped at t+{ha['opus_workers_stopped_at_t_s']:.0f} s, and the last post from any working agent was at t+{ha['last_worker_board_post_at_t_s']:.0f} s, {ha['first_84c_after_last_post_s']:.0f} s before the first 84 C sample ({ha['first_84c_after_opus_stop_s']:.0f} s after the Opus stop). The stall monitor kept posting to the board until t+{ha['stall_monitor_last_post_at_t_s']:.0f} s, after the run aborted, so host agent activity did not cease at the excursion. The CPU load of those agents is not recorded. That the plateau was measured during their CPU work, and that the excursion follows the end of that work, are inferences from the timing, not measurements.",
+    "Interpretation (inference, not measured): a step of several degrees within seconds at constant GPU power, with no recovery after a one-third power cut, is not GPU self-heating at constant cooling. It points to a loss of cooling capacity. A fan curve keyed to CPU temperature would fit the timing: if the workers' CPU load ended when they stopped, the fans may have slowed while the GPU was still at about 79 W. Coincidence fits too. This trace has no CPU temperature, fan speed or power-mode channel, so the cause is undetermined.",
+    f"Idle GPU temperature was {derived['idle_temp_before_c']:.0f} C before the run and {derived['idle_temp_after_unload_c']:.0f} C in the last post-run sample, which shows how much heat the chassis was holding.",
     "Recommendation 1: add CPU package temperature, fan RPM, CPU load and the active ASUS/Windows power mode to the thermal sampler before repeating, and keep the machine otherwise idle, or record what else is running.",
     f"Recommendation 2: treat the margin on this chassis under Windows as about {derived['headroom_c_steady_to_abort_threshold']} C between plateau and the abort threshold. Later GPU jobs in this session paused themselves at 85 C repeatedly (20 pauses in one 15-minute probe). Sustained jobs should carry a temperature guard, and dgpu_power_cap_w should stay provisional until a Linux boot can set it with nvidia-smi -pl.",
     "Load: llama-server b12549 (cu12.4), Qwen3.5-4B-Q8_0 with 3 F16 LoRAs, 8 slots x 8192 ctx, 8 concurrent 256-token greedy completions per round alternating three-adapter and W0 requests. Harness gpu_workload_v1.py, the version that ran. Lid position and AC state were not recorded.",
     "Provenance: the worker that started this run stopped on model quota about ten minutes into it. The harness finished and wrote its artifacts with no agent watching. This packet was assembled afterwards from those raw files by the session that took the work over. The run was launched through mlos gpu-lease and mlos stamp-run; the embedded record is the stamp, and no separate lease record is embedded. The raw server log contains a local path and is not shipped; its hash is listed.",
+    "Review: recomputed from raw files by two independent reviewers (rounds 1 and 2); every number reproduced. Round 2 corrected the 95 W wording, the CPU-load attribution and the unrecorded second-process claim; those corrections are applied in this revision. The round-2 fixes were applied by the author; a third, narrow review of the revision is recorded in receipts/REVIEW_ROUND_3.md.",
 ]
 cmd = [sys.executable, str(ROOT / "mlos" / "build_receipt.py"),
        "--packet-id", "geminus-to-orbit-010", "--issue", "Moissanite-Labs/ml-os#4 (Phase 3, item 3, Windows-side)",

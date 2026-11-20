@@ -1,8 +1,9 @@
 # Frontier evaluation
 
 A running assessment of where this work has reached new ground, what is solid, what is only
-promising, and what turned out to be wrong. Last revised 2026-11-19 19:30 local, after an
-independent review of the outgoing receipts corrected several statements made here earlier.
+promising, and what turned out to be wrong. Last revised 2026-11-19 20:49 local, when the round-2
+review corrections were applied to the receipts and to this file (a third, narrow review of the
+changes is recorded in `receipts\REVIEW_ROUND_3.md`).
 Every number comes from a result file in `m1\out\`; the scripts are in `m1\scripts\`.
 
 Scope of all measurements: one model (Qwen3.5-4B, Q8_0 GGUF), one runtime (llama.cpp b12549,
@@ -24,26 +25,35 @@ held-out states reuse a (positive token, negative set) pair seen in training. It
 
 | # | Finding | Evidence | Novelty |
 |---|---|---|---|
-| E1 | Greedy text cannot tell whether an adapter was applied on this runtime; log-probabilities can. | measured at server level | project; the test recipe is of general use |
-| E2 | Q8_0 matmuls quantise their input activations to 8 bits on this backend. | in the source, measured for six matmuls; link to batch noise inferred | known to runtime authors; size and consequence measured here |
+| E1 | Greedy text cannot tell whether an adapter was applied on this runtime; log-probability margins detect an adapter-sized shift on every request (on the test prompt, the formal-verification adapter's shift only). | measured at server level, two runs | project; the test recipe is of general use |
+| E2 | Q8_0 matmuls quantise their input activations to 8 bits on this backend. | in the source, measured for six matmuls; link to batch noise inferred and incomplete | known to runtime authors; size and consequence measured here |
 | E3 | The per-layer pass-through model fails for blk.28-30. | measured, two methods that agree in direction | project |
 | E4 | On radial shrinkage a uniform multi-layer split is worse than the last layer alone. | measured live, one operating point | project |
 | E5 | Position-local preservation is exact only for last-layer edits. | measured; mechanism reasoned | field, as a statement about what a per-key certificate bounds |
 | E6 | Preconditioning the target residual by the gate metric halves radial shrinkage at equal gain. It also raises off-domain KL. | derived, then measured at three stages | known principle, new application; mixed result |
 | E7 | Three upstream issues in the team's pipeline. | measured / inferred | project |
-| E8 | A last-layer adapter rolls back exactly with no cache flush; earlier-layer adapters leave a trace. | derived, then measured | project |
+| E8 | A last-layer FFN adapter, verified to run on the prefix, rolls back exactly with no cache flush; earlier-layer adapters leave a trace. | derived, then measured (corrected probe) | project |
 
-### E1. Text gates are unsound; the adapters were always applied
+### E1. Text gates are unsound; an adapter-sized shift reached every request
 
 The swarm held a receipt because 2 of 8 concurrent requests returned baseline-looking text.
 
 Server level, through llama-server's per-request `lora` path, reading log-probabilities at the
-token where outputs fork:
+token where outputs fork. Two runs, same rule fixed before the run:
 
-- 84 of 84 adapter requests fall in the adapter cluster (margin -0.13 to +0.19).
-- 36 of 36 baseline requests fall in the baseline cluster (-1.01 to -0.76).
-- The clusters are 0.64 logits apart. The decision rule was fixed before the run.
-- 33 of the 84 adapter requests still chose the baseline-like token.
+- Run 1: 84 of 84 adapter requests fall in the adapter cluster (margin -0.13 to +0.19); 36 of 36
+  baseline requests in the baseline cluster (-1.01 to -0.76); clusters 0.64 logits apart; 33 of
+  the 84 adapter requests still chose the baseline-like token.
+- Run 2: 84 of 84 and 36 of 36 again, clusters 0.69 logits apart; 16 of the 84 chose the
+  baseline-like token.
+- Scope (round-2 correction): on this prompt the margin sees the formal-verification adapter
+  only. Single requests with each adapter subset give fv alone -0.131 (adapter side), corpus
+  alone -0.925, design alone -0.534, corpus+design -0.634 (all W0 side, threshold -0.370). The
+  test shows an adapter-sized shift reached every request; it does not show all three adapters
+  were applied.
+- The server never batches different adapter configurations together, so the mixed rounds equal
+  the two reference requests exactly. Effective sample in run 2: 34 distinct adapter margins and
+  14 distinct W0 margins.
 
 Library level: an identical decode repeats to exactly 0.0. A different batch composition moves
 logits by up to 0.26-0.46. The adapters shift the fork margin from -0.94 to -0.10 when the prompt
@@ -63,14 +73,20 @@ matmuls (`mmvq.cu:1562`, `mmq.cu:291`, `quantize.cu:89-90`) and picks the kernel
 |---|---|
 | exact float64 on the dequantised weights | 3e-3 to 9e-3 |
 | inputs rounded to float16 | unchanged |
-| inputs quantised to int8 per block of 32 | 1e-5 to 1e-4 |
+| inputs quantised to int8 per block of 32 | 1e-5 to 1.1e-4 |
 | same with blocks of 16 or 64 | unchanged |
 
 That this is what makes logits depend on batch composition is an inference. There is no
-unquantised control, because an F16 copy of this model does not fit in 8 GiB.
+unquantised control, because an F16 copy of this model does not fit in 8 GiB. The mechanism is
+also incomplete (round-2 correction): eight identical sequences in one batch still differ row to
+row (W0 fork margins -1.04 to -0.80 across the 8 rows of `all8_whole`), which kernel choice by
+batch row count cannot explain, since all rows share one batch size. Treat the cause of
+batch-composition noise as open.
 
-It gives the stack a **resolution limit**: about 0.09 in final-residual norm, 0.2% of the radius.
-A leakage bound tighter than that is valid arithmetic with no observable consequence here.
+It gives the stack a **resolution limit**: about 0.09 in final-residual norm (sqrt(0.116² -
+0.069²), the measured anchor change under the corpus adapter minus the exact-arithmetic
+prediction), 0.2% of the radius. A leakage bound tighter than that is valid arithmetic with no
+observable consequence here.
 
 ### E3 and E4. The allocation question, measured instead of modelled
 
@@ -159,20 +175,31 @@ here because this project edits the up-projection, upstream of a gate and a down
 ### E8. Rollback without a cache flush
 
 Decode a prefix with an adapter on, switch it off without clearing memory, decode k more tokens,
-compare with a run that never had the adapter. 16 sequences.
+compare with a run that never had the adapter. Corrected probe (v2): an output row on every
+prefix token, so the adapter actually runs on the prefix. 14 sequences.
 
 | Adapter at | max logit difference, k = 1 | k = 16 | Exact matches |
 |---|---|---|---|
-| blk.28 | 0.28 median, 0.51 worst | 0.12 median | 0 of 16 |
-| blk.29 | 0.19 median | 0.11 median | 0 of 16 |
-| blk.30 | 0.12 median | 0.11 median | 0 of 16 |
-| blk.31 | 0.0000 | 0.0000 | 16 of 16 |
+| blk.28 | 0.30 median, 0.51 worst | 0.12 median | 0 of 14 |
+| blk.29 | 0.19 median, 0.45 worst | 0.11 median | 0 of 14 |
+| blk.30 | 0.12 median, 0.17 worst | 0.11 median | 0 of 14 |
+| blk.31 | 0.0000 | 0.0000 | 14 of 14 |
 
-Controls: a clean repeat gives 0.0, and flushing then decoding the whole sequence gives 0.0. The
-residue is small at these strengths (KL below 1e-3, no top-token change) and does not decay.
+The blk.31 FFN adapter is verified to run on the prefix: while on, it shifts prefix-end logits by
+a median of 1.6 to 1.9 across k. Controls: a clean repeat gives 0.0, and flushing then decoding
+the whole sequence gives 0.0. The residue at blk.28..30 is small at these strengths (KL below
+1e-3, no top-token change), about the size of batch-composition noise, and does not decay away
+within 16 tokens.
+
+The first probe (v1, 16 sequences) decoded the prefix with no output rows. This model evaluates
+the last-layer FFN on output rows only, so the blk.31 adapter never ran on the prefix and its
+"16 of 16 exact" was true by construction. It is kept as a labelled replicate for blk.28..30
+only; the corrected rerun is exact for 14 of 14 at k = 1, 4 and 16.
 
 Nothing follows the last FFN, so a blk.31 adapter cannot write into any cache. The cache-flush
 step of the rollback contract is needed for earlier-layer adapters and not for last-layer ones.
+This is library level: llama-server already clears a slot's cache when its adapter configuration
+changes, so the server path does not exercise mid-sequence rollback without a flush.
 
 ### A baseline worth knowing: how much the edit actually achieves
 
@@ -240,7 +267,7 @@ Each of these was believed for a while.
 | Spending the edit only where the base is wrong, or contrasting against the base's real top token, will work better. | The base already ranks the positive token first at 54.5% of states. Training only on the contested ones, or against the actual top-1 or top-3 competitors, gave no gain in held-out accuracy and more collateral change at every strength tested (`contested_exp_v1.json`). The team's recipe was as good or better. |
 | The team's `gammas` equal the analytic gate-metric sensitivity. | No match; their definition is unconfirmed. |
 | The first harvest ran on the GPU. | It ran on CPU; llama.cpp fell back silently. Caught by 0 MiB of VRAM in use. |
-| The thermal excursion was the GPU overheating on its own. | It followed the other agents on the host stopping by 14 s. A fan curve keyed to CPU temperature would fit. Undetermined. |
+| The thermal excursion was the GPU overheating on its own. | The first 84 C sample follows the last working-agent post by 14 s (the Opus workers stopped 39 s before onset), but the stall monitor kept posting afterwards and CPU load was not recorded. A fan curve keyed to CPU temperature would fit. Undetermined. |
 
 ## 5. Review record
 
@@ -251,6 +278,19 @@ one, an understated ratio whose baseline sat at the noise floor, a claim that wa
 host event in the thermal trace, and several inferences worded as fact. `receipts\REVIEW_ROUND_1.md`
 lists each with its resolution. The largest correction led to a new experiment (the server-level
 test in E1) that turned an inference into a measurement.
+
+A second round (2026-11-19, about 19:25 to 19:48) reproduced every number again and raised 11
+further points, recorded in `receipts\REVIEW_ROUND_2.md`. The ones that change what a claim
+means: the server margin sees the formal-verification adapter only (new subset-reference data,
+`server_logit_check_v2.json`); the mixed rounds are serialised, so the effective sample is 34
+distinct adapter margins and 14 W0 margins; the blk.31 "exact rollback" was true by construction
+because the prefix had no output rows (corrected probe re-run, `rollback_probe_v2.json`: the
+adapter shifts prefix-end logits by a median of 1.6 to 1.9 while on, and rollback is exact for
+14 of 14 at k = 1, 4, 16); and the noise mechanism is incomplete because identical rows in one
+batch still differ. The rest are wording and scope. All round-2 fixes were applied on 2026-11-19
+evening by the takeover session, the receipts rebuilt in the order 010, 009, 011, 005, and this
+file updated (E1, E2, E8). A third, narrow review of only these changes is recorded in
+`receipts\REVIEW_ROUND_3.md`.
 
 ## 6. Not new, and limits
 

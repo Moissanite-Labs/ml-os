@@ -1,5 +1,10 @@
 # Independent review, round 2 (2026-11-19, about 19:25 to 19:48) and where work stopped
 
+Status 2026-11-19 20:49 local: the resume steps below were executed by the takeover session.
+Fixes applied to make_009.py, make_010.py, make_011.py and the digest; receipts rebuilt in the
+order 010, 009, 011, 005; FRONTIER.md E1/E2/E8 and the review record updated; a third, narrow
+review of the changes is recorded in REVIEW_ROUND_3.md. Step 5 (the reboot) still needs the owner.
+
 A second reviewer rechecked the four receipts and the digest. All numbers reproduced again. All 24
 round-1 findings were confirmed fixed or partly fixed. It raised 11 new points. Verdict on every
 file: SEND AFTER FIXES. **Nothing has been sent.** Work paused at 19:55 on the owner's instruction
@@ -33,5 +38,5 @@ file: SEND AFTER FIXES. **Nothing has been sent.** Work paused at 19:55 on the o
    E8 (v2 figures: 14 of 14, adapter verified to run on the prefix) and the review record.
 4. Decide whether to run a third, narrow review of only these changes. Two rounds each found
    problems, so it is probably worth it. Then send the five files with
-   `tailscale file cp <files> <MAC_NODE>:` and fill in the ledger in `HANDOFF.md`.
+   `tailscale file cp <files> ahrazs-macbook-pro-1:` and fill in the ledger in `HANDOFF.md`.
 5. Then ask the owner about the reboot.

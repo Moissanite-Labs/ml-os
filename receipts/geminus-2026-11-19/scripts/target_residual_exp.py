@@ -25,7 +25,7 @@ from ggufw import Weights  # noqa: E402
 
 L, LI = 31, 3
 EPS = 1e-6
-LAMS = [float("inf"), 100.0, 10.0, 3.0, 1.0, 0.3, 0.1, 0.03, 0.01, 0.001, 0.0]   # in units of mean eigenvalue of M
+LAMS = [float("inf"), 1e2, 10.0, 3.0, 1.0, 0.3, 0.1, 0.03, 0.01, 0.001, 0.0]   # in units of mean eigenvalue of M
 GAINS = [1.0, 3.0]
 
 

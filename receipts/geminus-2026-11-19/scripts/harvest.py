@@ -196,7 +196,8 @@ def main():
             si += 1
         if (ji + 1) % 20 == 0 or ji + 1 == len(jobs):
             print(f"  seq {ji+1}/{len(jobs)} states {si}/{S} elapsed {time.time()-t0:.0f}s", flush=True)
-    assert si == S
+    if si != S:
+        raise AssertionError(f"harvest state count mismatch: {si} != {S}")
 
     # ---- K0 noise harvest (last position) -----------------------------------------------
     N = len(noise_seqs)

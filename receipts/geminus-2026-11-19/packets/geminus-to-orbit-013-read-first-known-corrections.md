@@ -1,5 +1,10 @@
 # Geminus to Orbit 013: read this first. Known corrections to packets 005, 009, 010, 011, 012
 
+Status 2026-11-19 20:49 local: corrections 1-4 and the smaller corrections below are now folded
+into revised 005, 009, 010, 011 and 012, rebuilt from the same raw files by the takeover session
+and re-checked in a third, narrow review (receipts/REVIEW_ROUND_3.md). This note is kept as the
+record of what changed; the rebuilt packets no longer disagree with it.
+
 These packets are being sent early, at the owner's request, so you can build on them while this
 node is paused on a usage cap. A second independent review finished just before the pause. All
 numbers reproduced. It raised wording and scope points that are only partly folded in. Where a

@@ -1,6 +1,6 @@
 {
   "artifact_sha256": {
-    "010-thermal-workload-with-minutes.json": "cbbdf4083f8d329a764d0136c08394a9766ebfbc38831e22ce796ee0504c50fa",
+    "010-thermal-workload-with-minutes.json": "af3584877db009799edcf9ede320b97e72cd71bd33a8d2f269a86db842f21b4f",
     "gpu_workload_v1.py": "7e8ca19374329fe1213a866539432df0e54f40bf4bd80bd4bae2c3e851b1f8d3",
     "thermal-nvsmi.csv": "c195779765a34a5bee890192929fcf15626c20e804318abc9b75267ed8e500a8",
     "thermal-server.log": "60b57f314fe3761fabef6b4f156c991ad677e1e393d05fe7dc57906ade531563",
@@ -130,16 +130,17 @@
   },
   "notes": [
     "Result: the run did NOT complete 15 minutes. It aborted itself at 743 s on the 87 C / 30 s rule and released the GPU cleanly. Three of six gates fail; this packet reports that as the finding.",
-    "Plateau (t+120 s to t+660 s): 82.3 C mean, 83 C max, drifting up by 0.03 C per minute, at 78.9 W and 1512 MHz with SwPowerCap (0x4) active on nearly every sample. There were 14 samples at 84 C during warm-up. Power settled near 79 W; the stamp records no power limit, and the profile's dgpu_power_cap_w=95 W was not exercised.",
+    "Plateau (t+120 s to t+660 s): 82.3 C mean, 83 C max, drifting up by 0.03 C per minute, at 78.9 W and 1512 MHz with SwPowerCap (0x4) active on nearly every sample. There were 14 samples at 84 C during warm-up. Sustained power settled near 78.9 W; brief samples reach 96.6 W (2 samples above 95 W), so the profile's dgpu_power_cap_w=95 W was touched but not sustained. The stamp records no power limit.",
     "Excursion: the first 84 C sample after the plateau is at t+666.8 s and 87 C is reached 5.1 s later, at t+671.9 s. SwThermalSlowdown begins at t+672.9 s. Power then falls to 54.2 W and SM clock to 860 MHz, and the temperature keeps RISING, from 86.13 C just after onset to 87.78 C in the last 9 s at 52.3 W. It had not reached equilibrium when the run aborted.",
-    "Nothing changes on the GPU in the 60 s before onset: 78.8 W, 1521 MHz, 79.6% utilisation, 7013 MiB, no second GPU process.",
-    "Something did change on the host. The other agents sharing this machine stopped: the two Opus workers at t+628 s, and the last post from any worker at t+653 s. The first 84 C sample follows 14 s after that last post. The plateau was therefore measured while unrecorded CPU work was going on, and the excursion follows its end.",
-    "Interpretation (inference, not measured): a step of several degrees within seconds at constant GPU power, with no recovery after a one-third power cut, is not GPU self-heating at constant cooling. It points to a loss of cooling capacity. A fan curve keyed to CPU temperature would fit the timing: when CPU work stopped the fans may have slowed while the GPU was still at 79 W. Coincidence fits too. This trace has no CPU temperature, fan speed or power-mode channel, so the cause is undetermined.",
-    "Idle GPU temperature was 61 C before the run and 85 C seconds after unloading, which shows how much heat the chassis was holding.",
+    "Nothing recorded changes on the GPU in the 60 s before onset: 78.8 W, 1521 MHz, 79.6% utilisation, 7013 MiB. Whether a second process shared the GPU was not recorded.",
+    "What is recorded on the host: the two Opus workers stopped at t+628 s, and the last post from any working agent was at t+653 s, 14 s before the first 84 C sample (39 s after the Opus stop). The stall monitor kept posting to the board until t+2425 s, after the run aborted, so host agent activity did not cease at the excursion. The CPU load of those agents is not recorded. That the plateau was measured during their CPU work, and that the excursion follows the end of that work, are inferences from the timing, not measurements.",
+    "Interpretation (inference, not measured): a step of several degrees within seconds at constant GPU power, with no recovery after a one-third power cut, is not GPU self-heating at constant cooling. It points to a loss of cooling capacity. A fan curve keyed to CPU temperature would fit the timing: if the workers' CPU load ended when they stopped, the fans may have slowed while the GPU was still at about 79 W. Coincidence fits too. This trace has no CPU temperature, fan speed or power-mode channel, so the cause is undetermined.",
+    "Idle GPU temperature was 61 C before the run and 85 C in the last post-run sample, which shows how much heat the chassis was holding.",
     "Recommendation 1: add CPU package temperature, fan RPM, CPU load and the active ASUS/Windows power mode to the thermal sampler before repeating, and keep the machine otherwise idle, or record what else is running.",
     "Recommendation 2: treat the margin on this chassis under Windows as about 4.7 C between plateau and the abort threshold. Later GPU jobs in this session paused themselves at 85 C repeatedly (20 pauses in one 15-minute probe). Sustained jobs should carry a temperature guard, and dgpu_power_cap_w should stay provisional until a Linux boot can set it with nvidia-smi -pl.",
     "Load: llama-server b12549 (cu12.4), Qwen3.5-4B-Q8_0 with 3 F16 LoRAs, 8 slots x 8192 ctx, 8 concurrent 256-token greedy completions per round alternating three-adapter and W0 requests. Harness gpu_workload_v1.py, the version that ran. Lid position and AC state were not recorded.",
-    "Provenance: the worker that started this run stopped on model quota about ten minutes into it. The harness finished and wrote its artifacts with no agent watching. This packet was assembled afterwards from those raw files by the session that took the work over. The run was launched through mlos gpu-lease and mlos stamp-run; the embedded record is the stamp, and no separate lease record is embedded. The raw server log contains a local path and is not shipped; its hash is listed."
+    "Provenance: the worker that started this run stopped on model quota about ten minutes into it. The harness finished and wrote its artifacts with no agent watching. This packet was assembled afterwards from those raw files by the session that took the work over. The run was launched through mlos gpu-lease and mlos stamp-run; the embedded record is the stamp, and no separate lease record is embedded. The raw server log contains a local path and is not shipped; its hash is listed.",
+    "Review: recomputed from raw files by two independent reviewers (rounds 1 and 2); every number reproduced. Round 2 corrected the 95 W wording, the CPU-load attribution and the unrecorded second-process claim; those corrections are applied in this revision. The round-2 fixes were applied by the author; a third, narrow review of the revision is recorded in receipts/REVIEW_ROUND_3.md."
   ],
   "overall_passed": false,
   "packet_id": "geminus-to-orbit-010",
@@ -165,11 +166,13 @@
       "excursion_seconds_from_first_84c_to_87c": 5.1,
       "headroom_c_steady_to_abort_threshold": 4.7,
       "host_activity": {
+        "cpu_load_of_other_agents": "not recorded",
         "first_84c_after_last_post_s": 13.8,
         "first_84c_after_opus_stop_s": 38.8,
         "last_worker_board_post_at_t_s": 653.0,
         "opus_workers_stopped_at_t_s": 628.0,
-        "source": "swarm system messages and board timestamps; whole-second resolution"
+        "source": "swarm system messages, board timestamps and the monitor session's last_post_time (board seq 47); whole-second resolution",
+        "stall_monitor_last_post_at_t_s": 2425.0
       },
       "idle_temp_after_unload_c": 85.0,
       "idle_temp_before_c": 61.0,

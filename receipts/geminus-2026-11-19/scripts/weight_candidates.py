@@ -19,7 +19,8 @@ for l in layers:
     Wu = W.get(f"blk.{l}.ffn_up.weight")       # (d_ff, d)
     Wg = W.get(f"blk.{l}.ffn_gate.weight")     # (d_ff, d)
     gn = W.get(f"blk.{l}.post_attention_norm.weight")
-    assert Wd.shape == (d, Wu.shape[0]) and Wu.shape == Wg.shape == (Wd.shape[1], d), (Wd.shape, Wu.shape)
+    if not (Wd.shape == (d, Wu.shape[0]) and Wu.shape == Wg.shape == (Wd.shape[1], d)):
+        raise AssertionError(f"FFN weight shape mismatch: {(Wd.shape, Wu.shape)}")
     dff = Wd.shape[1]
     sd = np.linalg.svd(Wd, compute_uv=False)
     su = np.linalg.svd(Wu, compute_uv=False)

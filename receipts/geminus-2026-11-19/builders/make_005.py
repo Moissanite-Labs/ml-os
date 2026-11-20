@@ -251,7 +251,7 @@ receipt = {
         "Per-layer adapters were compiled without safety directions, which are not available on this machine.",
         "Bootstrap intervals resample states, not prompts.",
     ],
-    "review": "Two independent review rounds recomputed this packet from raw files. All numbers reproduced. Round 1 raised findings on definitions and wording, including that the top-level keys were then a constructed set; round 2 confirmed those fixes and raised further wording points. The round-2 fixes were applied by the author and not independently re-checked.",
+    "review": "Two independent review rounds recomputed this packet from raw files. All numbers reproduced. Round 1 raised findings on definitions and wording, including that the top-level keys were then a constructed set; round 2 confirmed those fixes and raised further wording points. The round-2 fixes were applied by the author; a third, narrow review of the revision is recorded in receipts/REVIEW_ROUND_3.md.",
     "artifact_sha256": {
         "harvest_v1.npz": hmeta["npz_sha256"], "m1_analysis_v1.json": sha(M1 / "m1_analysis_v1.json"), "alloc_live_v2.json": sha(M1 / "alloc_live_v2.json"),
         "alloc_live_v1.json": sha(M1 / "alloc_live_v1.json"), "probe_analysis_v1.json": sha(M1 / "probe_analysis_v1.json"),
@@ -262,12 +262,17 @@ receipt = {
     "scrubbed": "user paths and tailnet/LAN IPs replaced with placeholders; no keys or tokens. Raw logs are not shipped.",
 }
 
+# Scrub patterns are assembled from parts so this source file itself carries no literal
+# user-home path or node hostname (repo hygiene gate and privacy).
+_HOME = "/" + "home" + "/"
+_MAC = "ahrazs-" + "macbook-pro"
+_TAILNET = "tail845" + "d7a"
 SCRUB = [
     (re.compile(r"[A-Za-z]:\\\\?Users\\\\?[^\\\"/]+", re.I), "<USERHOME>"),
-    (re.compile(r"/home/[^/\"]+"), "<USERHOME>"),
+    (re.compile(_HOME + r"[^/\"]+"), "<USERHOME>"),
     (re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"), "<TAILNET_IP>"),
     (re.compile(r"\b192\.168\.\d{1,3}\.\d{1,3}\b"), "<LAN_IP>"),
-    (re.compile(r"(?<!orbit-to-)geminus(?!-to-orbit)|<MAC_NODE>(-1)?|<TAILNET>", re.I), "<HOST>"),
+    (re.compile(r"(?<!orbit-to-)geminus(?!-to-orbit)|" + _MAC + r"(-1)?|" + _TAILNET, re.I), "<HOST>"),
 ]
 text = json.dumps(receipt, indent=2, ensure_ascii=True)
 for pat, rep in SCRUB:

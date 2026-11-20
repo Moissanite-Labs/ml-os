@@ -786,7 +786,7 @@
     "Per-layer adapters were compiled without safety directions, which are not available on this machine.",
     "Bootstrap intervals resample states, not prompts."
   ],
-  "review": "Two independent review rounds recomputed this packet from raw files. All numbers reproduced. Round 1 raised findings on definitions and wording, including that the top-level keys were then a constructed set; round 2 confirmed those fixes and raised further wording points. The round-2 fixes were applied by the author and not independently re-checked.",
+  "review": "Two independent review rounds recomputed this packet from raw files. All numbers reproduced. Round 1 raised findings on definitions and wording, including that the top-level keys were then a constructed set; round 2 confirmed those fixes and raised further wording points. The round-2 fixes were applied by the author; a third, narrow review of the revision is recorded in receipts/REVIEW_ROUND_3.md.",
   "artifact_sha256": {
     "harvest_v1.npz": "e821eb683d7e1fd53d43e347fbb8b6b2d59f7685f47c239e07d9478ec8a0364c",
     "m1_analysis_v1.json": "e255846ae45b5d34fa203fce195d602172a5d0c4a3d6e6dfdcf6a10a5405ac5e",
@@ -798,9 +798,9 @@
     "adapter:plain_blk29": "34ad72f3613e777eee3a791219c10d12399bb39fbe9c7906e40b6889f4bb82dc",
     "adapter:plain_blk30": "c3379eac2fee09cb66e18fb712db156975353fcf42b86adebaada4458b0d7530",
     "adapter:plain_blk31": "5bbc37371cd5791ac5ba9acdd0bd8b90abf967142726c019dd7284add9dd87e4",
-    "script:harvest.py": "073f486a25439a965827232331d9acaa8ed632ee5314c451122c61918d3d133b",
+    "script:harvest.py": "ddf807603f53ab8316c800a1469207736f3d3516cfae8c532df97975d4f68f16",
     "script:m1_analyze.py": "0c2a0c83a560c89c1507abda21b9d5b998cc4c3ba2c1d62364e841f2fcbfe53d",
-    "script:probe.py": "91e4050b84e4487989e6b9544695a0b00d9c4df0cc3a10b61535a976463b8652",
+    "script:probe.py": "210f6709cfe9a8e7e9b10889426982c6ba617e12783b83f880a8d8b33b434021",
     "script:probe_analyze.py": "6f27f015ae1c815272b7d6b6b5189647754f41c6b7709fc2eddb28783f4bad88",
     "script:alloc_build.py": "33c009068821af3d76a873b1192487c60fcce692e6941fc13a54ceaed7e7f6cc",
     "script:alloc_live.py": "368ce3d2b5ad64a1d8319a66f6d5b86c020cd7266b696c10fbfb868c85a4e1b9",

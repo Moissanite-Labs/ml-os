@@ -1,15 +1,17 @@
 {
   "artifact_sha256": {
-    "009-smoke-workload-with-probe.json": "d6921b669e5f1c47877b7e566097d5a18ebd2b09019c1a1bfb5384d12290070c",
+    "009-smoke-workload-with-probe.json": "99e0fba2e5f1090e52ee5743c357d113d48d98fd7950baf2617ece1f68558d54",
     "actq_check_v1.json": "4b964ebb53868c39c42337db0360b5a82368e6c451a9ecdc12ef39ea736b50dc",
     "gguf_predict.py": "a82a8ba2b1fcceea2533d26d6e774ed94c9b0ae35b39dcfc3ee0cdf4779238cb",
     "gpu_workload.py": "f3347682a7bfdad8c37580c032205ec4cbfee1c3712d1eefb7d05566b86e3107",
-    "llama_ctypes.py": "e22e1c390adcafb306306f00b4c06417d3379a8caefee72c8524e3ca0f1d1039",
-    "probe.py": "91e4050b84e4487989e6b9544695a0b00d9c4df0cc3a10b61535a976463b8652",
+    "llama_ctypes.py": "a61a96b8ef3ef6469909e7673941eba15504c0485bc4043e8358ad1b19894b51",
+    "probe.py": "210f6709cfe9a8e7e9b10889426982c6ba617e12783b83f880a8d8b33b434021",
     "probe_analysis_v1.json": "9d502146e06576e67278055ddd203d2c26b7f62036d9453732b47b19063a658e",
-    "server_logit_check.py": "06723f1b6bb78fee63f79002157359a12d460ae5f9f9a6827d39fbe2ea0c8550",
+    "server_logit_check.py": "9124a76a4672188947e8fea6395d7935235f094f463e2410cbfa54b5a96a959d",
     "server_logit_check_v1.json": "ba364a01c125d8e3a4e8f079bf31f1988de74952aa6b652947b8893d8761e355",
     "server_logit_check_v1.stamp.json": "2c562715326dd28481ea44f2762ffcccc6defe248437ae41c7bea96efd26ad51",
+    "server_logit_check_v2.json": "da8bf85b7afca7e0d6ff543c176330d07593531346964af5ad6e9848d31fcdc4",
+    "server_logit_check_v2.stamp.json": "7a811263f118e3d8691875136744caa591cd17e03e117356f4ddc35e79d01b2e",
     "smoke-nvsmi.csv": "41286ccf1775d4093418cd32b5d16bead2f414fa147ae255b9227f342c82e692",
     "smoke-server.log": "26defb157f2455719dc4c493b24cc4e62b276d45b4b59e1519f56c1aa5b33f29",
     "smoke-stamp.json": "2a74aa31a187dfc8e23a8072612b59c0abff9bfaede2418db8f7a8811fbde2e0",
@@ -22,9 +24,9 @@
       "threshold": "8 slots with n_ctx 8192 each, serving 8 concurrent requests"
     },
     "lora_applied_on_every_slot_server_level_logprob_margin": {
-      "measured": "84/84 adapter requests and 36/36 W0 requests correct; adapter margins [-0.127, +0.186], W0 margins [-1.009, -0.764], gap 0.637; rounds: 6 x 8 adapter, 3 x 8 W0, 3 mixed, 3 staggered",
+      "measured": "run 1: 84/84 adapter and 36/36 W0 correct, gap 0.637; run 2: 84/84 adapter and 36/36 W0 correct, gap 0.690. Run-2 subset references: fv alone -0.131 (adapter side), corpus alone -0.925, design alone -0.534, corpus+design -0.634 (all W0 side; threshold -0.370). Effective sample in run 2: 34 distinct adapter margins and 14 distinct W0 margins; the mixed rounds are serialised by the server and equal the two references. Rounds per run: 6 x 8 adapter, 3 x 8 W0, 3 mixed, 3 staggered",
       "passed": true,
-      "threshold": "llama-server per-request 'lora' path: every adapter request's fork-token margin lies on the adapter side of the midpoint between the two single-request reference margins, and every W0 request's on the W0 side. Rule fixed before the run."
+      "threshold": "llama-server per-request 'lora' path: every adapter request's fork-token margin lies on the adapter side of the midpoint between the two single-request reference margins, and every W0 request's on the W0 side. Rule fixed before the run. SCOPE (round-2 correction): on this prompt the margin sees the formal-verification adapter only, so the gate tests that an adapter-sized shift reached every request, not that all three adapters were applied."
     },
     "lora_delta_on_every_row_library_level": {
       "measured": "min correlation 0.9970 over 3 compositions x 8 rows; projection on the reference delta in [0.987, 1.111]",
@@ -37,9 +39,9 @@
       "threshold": "<= 7372 MiB (7.2 GiB)"
     },
     "stamp_clean_hardware_run": {
-      "measured": "text re-run: clean_hardware_run=True, anomalies=[]; server-level test: clean_hardware_run=True, anomalies=[]",
+      "measured": "text re-run: clean_hardware_run=True, anomalies=[]; server-level test run 1: clean_hardware_run=True, anomalies=[]; run 2: clean_hardware_run=True, anomalies=[]",
       "passed": true,
-      "threshold": "mlos stamp-run zone B: clean_hardware_run=true, 0 anomalies (strict text re-run and server-level test)"
+      "threshold": "mlos stamp-run zone B: clean_hardware_run=true, 0 anomalies (strict text re-run and both server-level tests)"
     },
     "text_proxy_8slot_lora_shaped_output": {
       "measured": "7/24 LoRA-shaped, 17 W0-like in their first 60 characters, 0 other; W0-like slots by round=[[0, 1, 2, 6, 7], [0, 1, 2, 6, 7], [0, 1, 2, 3, 5, 6, 7]]; W0 requests that came back LoRA-shaped: 0/8. Full-content hashes: 0 of the 24 equal any W0 output",
@@ -152,25 +154,29 @@
     }
   },
   "notes": [
-    "Headline: through llama-server's per-request path, 84 of 84 adapter requests and 36 of 36 W0 requests are classified correctly by log-probability margin, with a gap of 0.64 logits between the two groups. 33 of those 84 adapter requests still chose the W0-like token. The greedy-text gate fails (7 of 24) because it is not measuring adapter application.",
+    "Headline: through llama-server's per-request path, an adapter-sized shift reached every request in both runs: 84 of 84 adapter requests and 36 of 36 W0 requests classified correctly by log-probability margin in run 1 (gap 0.64 logits), and 84 of 84 and 36 of 36 in run 2 (gap 0.69). SCOPE: on this prompt the margin sees the formal-verification adapter only (fv alone -0.131, adapter side; corpus alone -0.925, design alone -0.534, corpus+design -0.634, all W0 side). The test does not show that all three adapters were applied. 33 of the 84 adapter requests in run 1 and 16 of 84 in run 2 still chose the W0-like token. The greedy-text gate fails (7 of 24) because it is not measuring adapter application.",
     "Why text fails: at the second generated token the base model prefers <think> over ``` by 0.82 logits through the server. The three adapters move that margin by +0.90, leaving +0.078, a near tie. Decoding the same tokens in a different batch composition moves logits by up to 0.46 (0.0 when the composition is identical), so requests take either branch.",
-    "Order of events, from the run stamps (UTC): (1) library probe 23:06:46-23:21:30; (2) strict text re-run on the server 23:36:02-23:37:01, the run whose VRAM and slot figures are gated here; (3) server-level log-probability test 00:11:56-00:12:35. This packet joins them; they were not one experiment.",
+    "Order of events, from the run stamps (UTC): (1) library probe 23:06:46-23:21:30; (2) strict text re-run on the server 23:36:02-23:37:01, the run whose VRAM and slot figures are gated here; (3) server-level log-probability test run 1 00:11:56-00:12:35; (4) server-level log-probability test run 2 00:50:57-00:51:12, which adds the per-adapter-subset references and distinct-margin counts. This packet joins them; they were not one experiment.",
+    "The mixed rounds add nothing about noise: the server never batches different adapter configurations together, so those 24 results equal the two single-request references exactly (run 2 records this). The effective sample is 34 distinct adapter margins and 14 distinct W0 margins, not 84 and 36 independent draws.",
     "The strict text re-run overlapped a CPU job on the same machine: 22.5 tok/s per slot against 36.3 in the first smoke run, and the server took 18.49 s to load against 3.05 s. Throughput from this run should not be used.",
     "Agreement and disagreement between runs. Rounds 0 and 1 of the text re-run show slots 0,1,2,6,7 W0-like, exactly the rows the library's 8-sequence 55+4 emulation predicts. Round 2 shows 7 of 8 after three arrival waves, which no library emulation reproduces; the staggered rounds of the server-level test use that arrival pattern and classify 24 of 24 correctly. The library's reconstruction of the first run's mixed batch predicts one W0-like row where that run showed two. Batch composition is not logged by the server, so it is inferred from arrival times and source.",
     "'W0-like' means the first 60 characters match. In full, 0 of the 24 three-adapter outputs equal any W0 output.",
-    "Cause of the composition dependence. In the pinned source the CUDA backend quantises the activation operand of quantised-weight matmuls to 8 bits per block of 32 (mmvq.cu:1562, mmq.cu:291, quantize.cu:89-90) and picks the kernel by batch row count. Measured for six matmuls (ffn_up/gate/down of blk.28 and blk.31): emulating that quantisation reproduces the runtime to 9e-05-1e-04 at blk.31 where exact arithmetic differs by 4e-03-5e-03. That this is what makes logits depend on batch composition is an inference; there is no unquantised control.",
+    "Cause of the composition dependence, part measured and part open. In the pinned source the CUDA backend quantises the activation operand of quantised-weight matmuls to 8 bits per block of 32 (mmvq.cu:1562, mmq.cu:291, quantize.cu:89-90) and picks the kernel by batch row count. Measured for six matmuls (ffn_up, ffn_gate and ffn_down of blk.28 and blk.31): emulating that quantisation reproduces the runtime to 1e-05-1.1e-04 where exact arithmetic differs by 3e-03-9e-03. That this is what makes logits depend on batch composition is an inference; there is no unquantised control.",
+    "The mechanism is incomplete (round-2 correction): eight identical sequences in one batch still differ row to row (all8_whole: W0 fork margins span -1.038 to -0.802 across the 8 rows), which kernel choice by batch row count cannot explain, since all rows share one batch size. Treat the cause of batch-composition noise as open.",
     "Consequence for gates elsewhere: test adapter application, T-C5 rollback and 'adapter changes output' on log-probabilities under a fixed batch composition, not on greedy text. Packet 002's 8-slot 'triple LoRA' throughput figures stand as throughput and carry no evidence about per-slot content either way.",
     "overall_passed below is computed over all eight gates and is false, because the 8-slot text gate fails. workload.gate_views gives the other view and says who drew the line.",
     "VRAM: only the 8 full-attention layers of this hybrid model hold K/V, which gives exactly 2048.0 MiB at 8 x 8192. The 773 MiB residual is not modelled.",
     "llama.cpp b12549-8af68d486 cu12.4 Windows release, Qwen3.5-4B-Q8_0.gguf sha256 10cc391b...61e1, mcproof composition LoRAs (each a single rank-8 pair on blk.31.ffn_up). Server flags: -c 65536 -np 8 -ngl 99 -ctk f16 -ctv f16 --slots --no-cache-idle-slots --lora-scaled with the three adapters at scale 0.0, --lora-init-without-apply, --host 127.0.0.1. Native Windows 11, before WSL.",
     "Runs were launched through mlos gpu-lease and mlos stamp-run. The embedded stamp is from the strict text re-run; no separate lease record is embedded. Raw server logs contain a local path and are not shipped; their hashes are listed.",
-    "History: the first smoke run (16:39) showed slots 2 and 3 returning W0-like text; the swarm's verifier caught it and the receipt was held. A source review of the server at this commit found no path by which an equal-config batch could skip the adapter set, with medium-high confidence and without reading all of it. The log-probability test above is the direct check."
+    "History: the first smoke run (16:39) showed slots 2 and 3 returning W0-like text; the swarm's verifier caught it and the receipt was held. A source review of the server at this commit found no path by which an equal-config batch could skip the adapter set, with medium-high confidence and without reading all of it. The log-probability test above is the direct check.",
+    "Embedded-data notes: 127.0.0.1 and the ephemeral ports in the raw records are loopback-only server endpoints, not network exposure. The harness label w0_identical means the first 60 characters match a W0 output, not full equality; full-content hashes are reported separately.",
+    "Review: recomputed from raw files by two independent reviewers (rounds 1 and 2); every number reproduced. Round 2 found that the margin sees the formal-verification adapter only, that the mixed rounds are serialised, and that the noise mechanism is incomplete; those corrections are applied in this revision. The round-2 fixes were applied by the author; a third, narrow review of the revision is recorded in receipts/REVIEW_ROUND_3.md."
   ],
   "overall_passed": false,
   "packet_id": "geminus-to-orbit-009",
   "schema": "geminus-to-orbit-mlos-receipt/v0.1",
   "scrubbed": "user paths, hostnames, tailnet/LAN IPs replaced with placeholders; no keys or tokens",
-  "title": "Live RTX 3080 llama-server + 3 F16 LoRA smoke, native Windows 11: adapters reach every slot by log-probability test; the greedy-text gate fails and is shown to be the wrong test",
+  "title": "Live RTX 3080 llama-server + 3 F16 LoRA smoke, native Windows 11: an adapter-sized shift reaches every request by log-probability test (on this prompt the margin sees the fv adapter only); the greedy-text gate fails and is shown to be the wrong test",
   "workload": {
     "compute_vram_released_after_exit": true,
     "ctx_per_slot": 8192,
@@ -559,673 +565,1467 @@
       "--lora-init-without-apply"
     ],
     "server_level_logprob_test": {
-      "build_info": "b12549-8af68d486",
-      "decision_threshold_margin_midpoint": -0.3699007034301758,
-      "per_round": [
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            0.0225,
-            -0.1161,
-            0.0202,
-            0.0182,
-            0.0252,
-            0.031,
-            0.186,
-            0.0005
-          ],
-          "name": "triple_x8_r0",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "```",
-            "<think>",
-            "```",
-            "```",
-            "```",
-            "```",
-            "```",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            0.0968,
-            -0.0064,
-            -0.0255,
-            0.0879,
-            0.0879,
-            0.0074,
-            0.0649,
-            0.0649
-          ],
-          "name": "triple_x8_r1",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "```",
-            "<think>",
-            "<think>",
-            "```",
-            "```",
-            "```",
-            "```",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            -0.0413,
-            -0.0295,
-            -0.0295,
-            -0.0522,
-            0.0456,
-            -0.0253,
-            -0.1271,
-            -0.0187
-          ],
-          "name": "triple_x8_r2",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "```",
-            "<think>",
-            "<think>",
-            "<think>"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            0.0677,
-            -0.0074,
-            -0.0074,
-            0.0879,
-            0.0879,
-            0.0074,
-            0.0649,
-            0.0649
-          ],
-          "name": "triple_x8_r3",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "```",
-            "<think>",
-            "<think>",
-            "```",
-            "```",
-            "```",
-            "```",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            -0.0539,
-            -0.0539,
-            -0.0558,
-            0.0713,
-            0.0148,
-            0.0608,
-            -0.0104,
-            -0.0011
-          ],
-          "name": "triple_x8_r4",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "<think>",
-            "<think>",
-            "```",
-            "```",
-            "```",
-            "<think>",
-            "<think>"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            -0.0074,
-            -0.0074,
-            0.1089,
-            0.1089,
-            -0.0656,
-            0.0571,
-            -0.0288,
-            -0.0773
-          ],
-          "name": "triple_x8_r5",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "<think>",
-            "```",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "<think>"
-          ]
-        },
-        {
-          "classified": [
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0"
-          ],
-          "margins": [
-            -1.0092,
-            -1.0092,
-            -0.9438,
-            -0.8391,
-            -0.9243,
-            -0.8717,
-            -0.8919,
-            -0.8825
-          ],
-          "name": "w0_x8_r0",
-          "requested": [
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0"
-          ],
-          "second_token": [
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>"
-          ]
-        },
-        {
-          "classified": [
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0"
-          ],
-          "margins": [
-            -0.7639,
-            -0.998,
-            -0.998,
-            -0.885,
-            -0.885,
-            -0.8759,
-            -0.9426,
-            -0.9426
-          ],
-          "name": "w0_x8_r1",
-          "requested": [
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0"
-          ],
-          "second_token": [
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>"
-          ]
-        },
-        {
-          "classified": [
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0"
-          ],
-          "margins": [
-            -0.8317,
-            -0.8899,
-            -0.8268,
-            -0.8268,
-            -0.9859,
-            -0.8538,
-            -0.9399,
-            -0.9723
-          ],
-          "name": "w0_x8_r2",
-          "requested": [
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0",
-            "w0"
-          ],
-          "second_token": [
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>",
-            "<think>"
-          ]
-        },
-        {
-          "classified": [
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple"
-          ],
-          "margins": [
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782
-          ],
-          "name": "mixed_4w0_4triple_r0",
-          "requested": [
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple"
-          ],
-          "margins": [
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782
-          ],
-          "name": "mixed_4w0_4triple_r1",
-          "requested": [
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple"
-          ],
-          "margins": [
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782,
-            -0.818,
-            0.0782
-          ],
-          "name": "mixed_4w0_4triple_r2",
-          "requested": [
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple",
-            "w0",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            -0.0389,
-            0.1132,
-            0.1132,
-            -0.1021,
-            0.1401,
-            -0.0345,
-            -0.0512,
-            0.0193
-          ],
-          "name": "triple_x8_staggered_r0",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "```",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "<think>",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            -0.0389,
-            0.1132,
-            0.1132,
-            -0.1021,
-            0.1401,
-            -0.0345,
-            -0.0512,
-            0.0193
-          ],
-          "name": "triple_x8_staggered_r1",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "<think>",
-            "```",
-            "```",
-            "<think>",
-            "```",
-            "<think>",
-            "<think>",
-            "```"
-          ]
-        },
-        {
-          "classified": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "margins": [
-            0.0782,
-            -0.0345,
-            -0.0345,
-            -0.0347,
-            0.0193,
-            0.0566,
-            0.0461,
-            0.0331
-          ],
-          "name": "triple_x8_staggered_r2",
-          "requested": [
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple",
-            "triple"
-          ],
-          "second_token": [
-            "```",
-            "<think>",
-            "<think>",
-            "<think>",
-            "```",
-            "```",
-            "```",
-            "```"
-          ]
+      "reading": "An adapter-sized shift reached every request in both runs. On this prompt the margin sees the formal-verification adapter only: fv alone gives a margin on the adapter side, corpus alone, design alone and corpus+design all give margins on the W0 side. The test does not show that all three adapters were applied. The server never batches different adapter configurations together, so the mixed rounds equal the two single-request references exactly; the effective sample is the distinct margins counted in run 2.",
+      "run_v1": {
+        "build_info": "b12549-8af68d486",
+        "decision_threshold_margin_midpoint": -0.3699007034301758,
+        "per_round": [
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0225,
+              -0.1161,
+              0.0202,
+              0.0182,
+              0.0252,
+              0.031,
+              0.186,
+              0.0005
+            ],
+            "name": "triple_x8_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0968,
+              -0.0064,
+              -0.0255,
+              0.0879,
+              0.0879,
+              0.0074,
+              0.0649,
+              0.0649
+            ],
+            "name": "triple_x8_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0413,
+              -0.0295,
+              -0.0295,
+              -0.0522,
+              0.0456,
+              -0.0253,
+              -0.1271,
+              -0.0187
+            ],
+            "name": "triple_x8_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0677,
+              -0.0074,
+              -0.0074,
+              0.0879,
+              0.0879,
+              0.0074,
+              0.0649,
+              0.0649
+            ],
+            "name": "triple_x8_r3",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0539,
+              -0.0539,
+              -0.0558,
+              0.0713,
+              0.0148,
+              0.0608,
+              -0.0104,
+              -0.0011
+            ],
+            "name": "triple_x8_r4",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0074,
+              -0.0074,
+              0.1089,
+              0.1089,
+              -0.0656,
+              0.0571,
+              -0.0288,
+              -0.0773
+            ],
+            "name": "triple_x8_r5",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -1.0092,
+              -1.0092,
+              -0.9438,
+              -0.8391,
+              -0.9243,
+              -0.8717,
+              -0.8919,
+              -0.8825
+            ],
+            "name": "w0_x8_r0",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -0.7639,
+              -0.998,
+              -0.998,
+              -0.885,
+              -0.885,
+              -0.8759,
+              -0.9426,
+              -0.9426
+            ],
+            "name": "w0_x8_r1",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -0.8317,
+              -0.8899,
+              -0.8268,
+              -0.8268,
+              -0.9859,
+              -0.8538,
+              -0.9399,
+              -0.9723
+            ],
+            "name": "w0_x8_r2",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r0",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r1",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r2",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0389,
+              0.1132,
+              0.1132,
+              -0.1021,
+              0.1401,
+              -0.0345,
+              -0.0512,
+              0.0193
+            ],
+            "name": "triple_x8_staggered_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0389,
+              0.1132,
+              0.1132,
+              -0.1021,
+              0.1401,
+              -0.0345,
+              -0.0512,
+              0.0193
+            ],
+            "name": "triple_x8_staggered_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              -0.0345,
+              -0.0345,
+              -0.0347,
+              0.0193,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          }
+        ],
+        "source": "m1/out/server_logit_check_v1.json",
+        "source_sha256": "ba364a01c125d8e3a4e8f079bf31f1988de74952aa6b652947b8893d8761e355",
+        "summary": {
+          "gap_between_clusters": 0.6368484497070312,
+          "reference_margin_triple": 0.07822799682617188,
+          "reference_margin_w0": -0.8180294036865234,
+          "slot_served_equals_requested": true,
+          "triple_classified_triple": 84,
+          "triple_margin_max": 0.1859874725341797,
+          "triple_margin_min": -0.1270962953567505,
+          "triple_requests": 84,
+          "triple_requests_whose_second_token_is_think": 33,
+          "triple_requests_with_margin": 84,
+          "w0_classified_w0": 36,
+          "w0_margin_max": -0.7639447450637817,
+          "w0_margin_min": -1.0091705322265625,
+          "w0_requests": 36,
+          "w0_requests_with_margin": 36
         }
-      ],
-      "source": "m1/out/server_logit_check_v1.json",
-      "source_sha256": "ba364a01c125d8e3a4e8f079bf31f1988de74952aa6b652947b8893d8761e355",
-      "summary": {
-        "gap_between_clusters": 0.6368484497070312,
-        "reference_margin_triple": 0.07822799682617188,
-        "reference_margin_w0": -0.8180294036865234,
-        "slot_served_equals_requested": true,
-        "triple_classified_triple": 84,
-        "triple_margin_max": 0.1859874725341797,
-        "triple_margin_min": -0.1270962953567505,
-        "triple_requests": 84,
-        "triple_requests_whose_second_token_is_think": 33,
-        "triple_requests_with_margin": 84,
-        "w0_classified_w0": 36,
-        "w0_margin_max": -0.7639447450637817,
-        "w0_margin_min": -1.0091705322265625,
-        "w0_requests": 36,
-        "w0_requests_with_margin": 36
+      },
+      "run_v2": {
+        "build_info": "b12549-8af68d486",
+        "decision_threshold_margin_midpoint": -0.3699007034301758,
+        "per_round": [
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0677,
+              0.0968,
+              -0.0064,
+              -0.0255,
+              0.0879,
+              0.0879,
+              0.0895,
+              0.0649
+            ],
+            "name": "triple_x8_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0074,
+              -0.0074,
+              0.1089,
+              0.1089,
+              -0.0656,
+              0.0571,
+              -0.0288,
+              -0.0773
+            ],
+            "name": "triple_x8_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0677,
+              0.0225,
+              0.1089,
+              0.1089,
+              -0.0656,
+              0.0571,
+              -0.0288,
+              -0.0773
+            ],
+            "name": "triple_x8_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0225,
+              -0.1161,
+              0.0202,
+              0.0182,
+              0.0252,
+              0.031,
+              0.186,
+              0.0005
+            ],
+            "name": "triple_x8_r3",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.1108,
+              0.1365,
+              0.0196,
+              0.0221,
+              0.0367,
+              0.0879,
+              0.1175,
+              0.0649
+            ],
+            "name": "triple_x8_r4",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0968,
+              -0.0064,
+              -0.0255,
+              0.0879,
+              0.0879,
+              0.0074,
+              0.0649,
+              0.0649
+            ],
+            "name": "triple_x8_r5",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -1.0092,
+              -1.0092,
+              -0.9438,
+              -0.8391,
+              -0.9243,
+              -0.8717,
+              -0.8919,
+              -0.8825
+            ],
+            "name": "w0_x8_r0",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -0.8435,
+              -0.8435,
+              -0.8527,
+              -0.927,
+              -0.8113,
+              -0.8113,
+              -0.8792,
+              -0.806
+            ],
+            "name": "w0_x8_r1",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -1.0092,
+              -1.0092,
+              -0.9438,
+              -0.8391,
+              -0.9243,
+              -0.8717,
+              -0.8919,
+              -0.8825
+            ],
+            "name": "w0_x8_r2",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r0",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r1",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r2",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              0.0566,
+              0.0566,
+              -0.0213,
+              0.0331,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              0.0566,
+              0.0461,
+              0.0331,
+              0.0433,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              0.0566,
+              0.0566,
+              -0.0213,
+              0.0331,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          }
+        ],
+        "single_request_references_by_adapter_subset": {
+          "corpus_and_weft_eido": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 1.0
+              },
+              {
+                "id": 1,
+                "scale": 1.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.6341400146484375,
+            "second_token": "<think>"
+          },
+          "corpus_only": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 1.0
+              },
+              {
+                "id": 1,
+                "scale": 0.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.9251994490623474,
+            "second_token": "<think>"
+          },
+          "formal_verification_only": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 0.0
+              },
+              {
+                "id": 1,
+                "scale": 0.0
+              },
+              {
+                "id": 2,
+                "scale": 1.0
+              }
+            ],
+            "margin": -0.13101577758789062,
+            "second_token": "<think>"
+          },
+          "three_again": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 1.0
+              },
+              {
+                "id": 1,
+                "scale": 1.0
+              },
+              {
+                "id": 2,
+                "scale": 1.0
+              }
+            ],
+            "margin": 0.07822799682617188,
+            "second_token": "```"
+          },
+          "w0_again": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 0.0
+              },
+              {
+                "id": 1,
+                "scale": 0.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.8180294036865234,
+            "second_token": "<think>"
+          },
+          "weft_eido_only": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 0.0
+              },
+              {
+                "id": 1,
+                "scale": 1.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.5338401794433594,
+            "second_token": "<think>"
+          }
+        },
+        "source": "m1/out/server_logit_check_v2.json",
+        "source_sha256": "da8bf85b7afca7e0d6ff543c176330d07593531346964af5ad6e9848d31fcdc4",
+        "summary": {
+          "distinct_triple_margins": 34,
+          "distinct_w0_margins": 14,
+          "gap_between_clusters": 0.6899223327636719,
+          "lora_echo_matches_request": true,
+          "mixed_rounds_note": {
+            "distinct_margins": [
+              -0.818029,
+              0.078228
+            ],
+            "equal_to_single_request_references": true,
+            "n": 24
+          },
+          "reference_margin_triple": 0.07822799682617188,
+          "reference_margin_w0": -0.8180294036865234,
+          "slot_served_equals_requested": true,
+          "triple_classified_triple": 84,
+          "triple_margin_max": 0.1859874725341797,
+          "triple_margin_min": -0.11607742309570312,
+          "triple_requests": 84,
+          "triple_requests_whose_second_token_is_think": 16,
+          "triple_requests_with_margin": 84,
+          "w0_classified_w0": 36,
+          "w0_margin_max": -0.805999755859375,
+          "w0_margin_min": -1.0091705322265625,
+          "w0_requests": 36,
+          "w0_requests_with_margin": 36
+        }
       }
     },
     "server_load_s": 18.49,
