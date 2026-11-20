@@ -1,0 +1,2410 @@
+{
+  "artifact_sha256": {
+    "009-smoke-workload-with-probe.json": "99e0fba2e5f1090e52ee5743c357d113d48d98fd7950baf2617ece1f68558d54",
+    "actq_check_v1.json": "4b964ebb53868c39c42337db0360b5a82368e6c451a9ecdc12ef39ea736b50dc",
+    "gguf_predict.py": "a82a8ba2b1fcceea2533d26d6e774ed94c9b0ae35b39dcfc3ee0cdf4779238cb",
+    "gpu_workload.py": "f3347682a7bfdad8c37580c032205ec4cbfee1c3712d1eefb7d05566b86e3107",
+    "llama_ctypes.py": "a61a96b8ef3ef6469909e7673941eba15504c0485bc4043e8358ad1b19894b51",
+    "probe.py": "210f6709cfe9a8e7e9b10889426982c6ba617e12783b83f880a8d8b33b434021",
+    "probe_analysis_v1.json": "9d502146e06576e67278055ddd203d2c26b7f62036d9453732b47b19063a658e",
+    "server_logit_check.py": "9124a76a4672188947e8fea6395d7935235f094f463e2410cbfa54b5a96a959d",
+    "server_logit_check_v1.json": "ba364a01c125d8e3a4e8f079bf31f1988de74952aa6b652947b8893d8761e355",
+    "server_logit_check_v1.stamp.json": "2c562715326dd28481ea44f2762ffcccc6defe248437ae41c7bea96efd26ad51",
+    "server_logit_check_v2.json": "da8bf85b7afca7e0d6ff543c176330d07593531346964af5ad6e9848d31fcdc4",
+    "server_logit_check_v2.stamp.json": "7a811263f118e3d8691875136744caa591cd17e03e117356f4ddc35e79d01b2e",
+    "smoke-nvsmi.csv": "41286ccf1775d4093418cd32b5d16bead2f414fa147ae255b9227f342c82e692",
+    "smoke-server.log": "26defb157f2455719dc4c493b24cc4e62b276d45b4b59e1519f56c1aa5b33f29",
+    "smoke-stamp.json": "2a74aa31a187dfc8e23a8072612b59c0abff9bfaede2418db8f7a8811fbde2e0",
+    "smoke-workload.json": "8e8599f211fe0f6f94122ce47ed00bd9dcb4f0dcfa95a47a2302e323922e03f8"
+  },
+  "gates": {
+    "kv_8_slots_x_8192": {
+      "measured": "total_slots=8, n_ctx_per_slot=8192, 3 rounds x 8 concurrent completions x128 tok returned",
+      "passed": true,
+      "threshold": "8 slots with n_ctx 8192 each, serving 8 concurrent requests"
+    },
+    "lora_applied_on_every_slot_server_level_logprob_margin": {
+      "measured": "run 1: 84/84 adapter and 36/36 W0 correct, gap 0.637; run 2: 84/84 adapter and 36/36 W0 correct, gap 0.690. Run-2 subset references: fv alone -0.131 (adapter side), corpus alone -0.925, design alone -0.534, corpus+design -0.634 (all W0 side; threshold -0.370). Effective sample in run 2: 34 distinct adapter margins and 14 distinct W0 margins; the mixed rounds are serialised by the server and equal the two references. Rounds per run: 6 x 8 adapter, 3 x 8 W0, 3 mixed, 3 staggered",
+      "passed": true,
+      "threshold": "llama-server per-request 'lora' path: every adapter request's fork-token margin lies on the adapter side of the midpoint between the two single-request reference margins, and every W0 request's on the W0 side. Rule fixed before the run. SCOPE (round-2 correction): on this prompt the margin sees the formal-verification adapter only, so the gate tests that an adapter-sized shift reached every request, not that all three adapters were applied."
+    },
+    "lora_delta_on_every_row_library_level": {
+      "measured": "min correlation 0.9970 over 3 compositions x 8 rows; projection on the reference delta in [0.987, 1.111]",
+      "passed": true,
+      "threshold": "ctypes on the same llama.dll, adapters set context-wide: for every output row of every 8-sequence composition tested, the adapter-induced logit delta over the full vocabulary correlates >= 0.99 with the single-sequence reference delta. The 0.99 threshold was chosen after seeing the data (an unapplied row would give a delta of zero)."
+    },
+    "peak_vram_le_7372_mib": {
+      "measured": "7096 MiB nvidia-smi memory.used @0.5s, 112 samples, baseline 0 MiB (strict text re-run)",
+      "passed": true,
+      "threshold": "<= 7372 MiB (7.2 GiB)"
+    },
+    "stamp_clean_hardware_run": {
+      "measured": "text re-run: clean_hardware_run=True, anomalies=[]; server-level test run 1: clean_hardware_run=True, anomalies=[]; run 2: clean_hardware_run=True, anomalies=[]",
+      "passed": true,
+      "threshold": "mlos stamp-run zone B: clean_hardware_run=true, 0 anomalies (strict text re-run and both server-level tests)"
+    },
+    "text_proxy_8slot_lora_shaped_output": {
+      "measured": "7/24 LoRA-shaped, 17 W0-like in their first 60 characters, 0 other; W0-like slots by round=[[0, 1, 2, 6, 7], [0, 1, 2, 6, 7], [0, 1, 2, 3, 5, 6, 7]]; W0 requests that came back LoRA-shaped: 0/8. Full-content hashes: 0 of the 24 equal any W0 output",
+      "passed": false,
+      "threshold": "DIAGNOSTIC ONLY: every concurrent three-adapter request returns LoRA-shaped text and no W0 request does (first 60 characters compared)"
+    },
+    "text_proxy_single_slot_lora_changes_greedy_output": {
+      "measured": "lora_changes_output=True in the strict text re-run. Library probe: the fork-token margin (``` minus <think>) is -0.941 for W0 and -0.103 with the three adapters when the prompt is decoded whole, so top-1 does not change there; through the server (prompt split 55+4) it is -0.818 and +0.078",
+      "passed": true,
+      "threshold": "DIAGNOSTIC ONLY: single-slot per-request scale 1.0 changes greedy text vs W0"
+    },
+    "vram_predicted_vs_measured": {
+      "measured": "-c 65536 (from the recorded server flags), -np 8 (recorded, not used by the predictor): predicted 6323.3 MiB = model file 4274.8 + f16 K/V 2048.0 for 8 attention layers + LoRA 0.5; measured 7096 MiB; gap 772.7 MiB = 10.9% (compute buffers, recurrent state and the CUDA context are not modelled)",
+      "passed": true,
+      "threshold": "|measured - predicted| <= 15% of measured; prediction from the GGUF header and the recorded -c value. The tolerance was chosen after seeing the data and is provisional."
+    },
+    "zero_lingering_compute_vram": {
+      "measured": "end compute_vram_mib=0, released_after_exit=True; stamper snapshots of free MiB at start/end 8018/8018",
+      "passed": true,
+      "threshold": "0 MiB compute VRAM after exit"
+    }
+  },
+  "ml_os_commit": "33c2a4fcaf378952205ea7af7fe87a2517f4b74e",
+  "ml_os_issue": "Moissanite-Labs/ml-os#2 (Phase 1, item 3)",
+  "mlos_run_receipt": {
+    "anomalies": [],
+    "clean_hardware_run": true,
+    "determinism_pins": {
+      "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
+      "HF_HUB_OFFLINE": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "PYTHONHASHSEED": "0",
+      "TORCH_USE_DETERMINISTIC_ALGORITHMS": "1",
+      "TRANSFORMERS_OFFLINE": "1",
+      "VECLIB_MAXIMUM_THREADS": "1"
+    },
+    "determinism_zone": "B",
+    "end_gpu_telemetry": {
+      "clocks_event_reasons": {
+        "bitmask": 1,
+        "decoded_reasons": [
+          "GpuIdle"
+        ],
+        "raw": "0x0000000000000001",
+        "slowdown_active": false,
+        "thermal_throttled": false
+      },
+      "clocks_mem_mhz": 810,
+      "clocks_sm_mhz": 210,
+      "compute_processes": [],
+      "compute_vram_mib": 0,
+      "driver_version": "566.07",
+      "gpu_name": "NVIDIA GeForce RTX 3080 Laptop GPU",
+      "memory_free_mib": 8018,
+      "memory_used_mib": 0,
+      "non_compute_desktop_vram_mib": 0,
+      "power_draw_w": 16.09,
+      "power_limit_w": null,
+      "pstate": "P5",
+      "temperature_gpu_c": 70,
+      "vbios_version": "94.04.49.00.51"
+    },
+    "execution": {
+      "command_argc": 18,
+      "command_exe": "python.exe",
+      "duration_ms": 58859.0,
+      "ended_utc": "2026-11-19T23:37:01Z",
+      "exit_code": 0,
+      "started_utc": "2026-11-19T23:36:02Z"
+    },
+    "git_head": "33c2a4fcaf378952205ea7af7fe87a2517f4b74e",
+    "gpu_telemetry_available": true,
+    "host": {
+      "cpu_isa": "x86_64",
+      "host_os": "windows",
+      "os_release": "11",
+      "python_version": "3.12.10"
+    },
+    "profile_id": "ux582hs-rtx3080-8gb",
+    "profile_sha256": "566c9192d38682a0ec4d652a63a3510aaefb9dc20ef91ae9bdc6d4abbbf5cbe2",
+    "receipt_sha256": "0c76102e2b868ca18f8227e2f7bc22c4bfb2b098f00bcfff5e281a73367b01fd",
+    "schema": "mlos-run-receipt/v0.1",
+    "start_gpu_telemetry": {
+      "clocks_event_reasons": {
+        "bitmask": 1,
+        "decoded_reasons": [
+          "GpuIdle"
+        ],
+        "raw": "0x0000000000000001",
+        "slowdown_active": false,
+        "thermal_throttled": false
+      },
+      "clocks_mem_mhz": 6000,
+      "clocks_sm_mhz": 1245,
+      "compute_processes": [],
+      "compute_vram_mib": 0,
+      "driver_version": "566.07",
+      "gpu_name": "NVIDIA GeForce RTX 3080 Laptop GPU",
+      "memory_free_mib": 8018,
+      "memory_used_mib": 0,
+      "non_compute_desktop_vram_mib": 0,
+      "power_draw_w": 20.78,
+      "power_limit_w": null,
+      "pstate": "P0",
+      "temperature_gpu_c": 61,
+      "vbios_version": "94.04.49.00.51"
+    }
+  },
+  "notes": [
+    "Headline: through llama-server's per-request path, an adapter-sized shift reached every request in both runs: 84 of 84 adapter requests and 36 of 36 W0 requests classified correctly by log-probability margin in run 1 (gap 0.64 logits), and 84 of 84 and 36 of 36 in run 2 (gap 0.69). SCOPE: on this prompt the margin sees the formal-verification adapter only (fv alone -0.131, adapter side; corpus alone -0.925, design alone -0.534, corpus+design -0.634, all W0 side). The test does not show that all three adapters were applied. 33 of the 84 adapter requests in run 1 and 16 of 84 in run 2 still chose the W0-like token. The greedy-text gate fails (7 of 24) because it is not measuring adapter application.",
+    "Why text fails: at the second generated token the base model prefers <think> over ``` by 0.82 logits through the server. The three adapters move that margin by +0.90, leaving +0.078, a near tie. Decoding the same tokens in a different batch composition moves logits by up to 0.46 (0.0 when the composition is identical), so requests take either branch.",
+    "Order of events, from the run stamps (UTC): (1) library probe 23:06:46-23:21:30; (2) strict text re-run on the server 23:36:02-23:37:01, the run whose VRAM and slot figures are gated here; (3) server-level log-probability test run 1 00:11:56-00:12:35; (4) server-level log-probability test run 2 00:50:57-00:51:12, which adds the per-adapter-subset references and distinct-margin counts. This packet joins them; they were not one experiment.",
+    "The mixed rounds add nothing about noise: the server never batches different adapter configurations together, so those 24 results equal the two single-request references exactly (run 2 records this). The effective sample is 34 distinct adapter margins and 14 distinct W0 margins, not 84 and 36 independent draws.",
+    "The strict text re-run overlapped a CPU job on the same machine: 22.5 tok/s per slot against 36.3 in the first smoke run, and the server took 18.49 s to load against 3.05 s. Throughput from this run should not be used.",
+    "Agreement and disagreement between runs. Rounds 0 and 1 of the text re-run show slots 0,1,2,6,7 W0-like, exactly the rows the library's 8-sequence 55+4 emulation predicts. Round 2 shows 7 of 8 after three arrival waves, which no library emulation reproduces; the staggered rounds of the server-level test use that arrival pattern and classify 24 of 24 correctly. The library's reconstruction of the first run's mixed batch predicts one W0-like row where that run showed two. Batch composition is not logged by the server, so it is inferred from arrival times and source.",
+    "'W0-like' means the first 60 characters match. In full, 0 of the 24 three-adapter outputs equal any W0 output.",
+    "Cause of the composition dependence, part measured and part open. In the pinned source the CUDA backend quantises the activation operand of quantised-weight matmuls to 8 bits per block of 32 (mmvq.cu:1562, mmq.cu:291, quantize.cu:89-90) and picks the kernel by batch row count. Measured for six matmuls (ffn_up, ffn_gate and ffn_down of blk.28 and blk.31): emulating that quantisation reproduces the runtime to 1e-05-1.1e-04 where exact arithmetic differs by 3e-03-9e-03. That this is what makes logits depend on batch composition is an inference; there is no unquantised control.",
+    "The mechanism is incomplete (round-2 correction): eight identical sequences in one batch still differ row to row (all8_whole: W0 fork margins span -1.038 to -0.802 across the 8 rows), which kernel choice by batch row count cannot explain, since all rows share one batch size. Treat the cause of batch-composition noise as open.",
+    "Consequence for gates elsewhere: test adapter application, T-C5 rollback and 'adapter changes output' on log-probabilities under a fixed batch composition, not on greedy text. Packet 002's 8-slot 'triple LoRA' throughput figures stand as throughput and carry no evidence about per-slot content either way.",
+    "overall_passed below is computed over all eight gates and is false, because the 8-slot text gate fails. workload.gate_views gives the other view and says who drew the line.",
+    "VRAM: only the 8 full-attention layers of this hybrid model hold K/V, which gives exactly 2048.0 MiB at 8 x 8192. The 773 MiB residual is not modelled.",
+    "llama.cpp b12549-8af68d486 cu12.4 Windows release, Qwen3.5-4B-Q8_0.gguf sha256 10cc391b...61e1, mcproof composition LoRAs (each a single rank-8 pair on blk.31.ffn_up). Server flags: -c 65536 -np 8 -ngl 99 -ctk f16 -ctv f16 --slots --no-cache-idle-slots --lora-scaled with the three adapters at scale 0.0, --lora-init-without-apply, --host 127.0.0.1. Native Windows 11, before WSL.",
+    "Runs were launched through mlos gpu-lease and mlos stamp-run. The embedded stamp is from the strict text re-run; no separate lease record is embedded. Raw server logs contain a local path and are not shipped; their hashes are listed.",
+    "History: the first smoke run (16:39) showed slots 2 and 3 returning W0-like text; the swarm's verifier caught it and the receipt was held. A source review of the server at this commit found no path by which an equal-config batch could skip the adapter set, with medium-high confidence and without reading all of it. The log-probability test above is the direct check.",
+    "Embedded-data notes: 127.0.0.1 and the ephemeral ports in the raw records are loopback-only server endpoints, not network exposure. The harness label w0_identical means the first 60 characters match a W0 output, not full equality; full-content hashes are reported separately.",
+    "Review: recomputed from raw files by two independent reviewers (rounds 1 and 2); every number reproduced. Round 2 found that the margin sees the formal-verification adapter only, that the mixed rounds are serialised, and that the noise mechanism is incomplete; those corrections are applied in this revision. The round-2 fixes were applied by the author; a third, narrow review of the revision is recorded in receipts/REVIEW_ROUND_3.md."
+  ],
+  "overall_passed": false,
+  "packet_id": "geminus-to-orbit-009",
+  "schema": "geminus-to-orbit-mlos-receipt/v0.1",
+  "scrubbed": "user paths, hostnames, tailnet/LAN IPs replaced with placeholders; no keys or tokens",
+  "title": "Live RTX 3080 llama-server + 3 F16 LoRA smoke, native Windows 11: an adapter-sized shift reaches every request by log-probability test (on this prompt the margin sees the fv adapter only); the greedy-text gate fails and is shown to be the wrong test",
+  "workload": {
+    "compute_vram_released_after_exit": true,
+    "ctx_per_slot": 8192,
+    "errors": [],
+    "gate_views": {
+      "all_gates_passed": false,
+      "gates_other_than_text_proxies": [
+        "peak_vram_le_7372_mib",
+        "vram_predicted_vs_measured",
+        "zero_lingering_compute_vram",
+        "kv_8_slots_x_8192",
+        "lora_applied_on_every_slot_server_level_logprob_margin",
+        "lora_delta_on_every_row_library_level",
+        "stamp_clean_hardware_run"
+      ],
+      "gates_other_than_text_proxies_passed": true,
+      "note": "The split into text proxies and other gates is ours. The server-level log-probability gate was added after the text gate failed, to test the same property directly."
+    },
+    "library_level_probe": {
+      "p1_noise_floor": {
+        "reference_lora_delta_second_token": {
+          "fv_solo": {
+            "delta_fork_margin": 0.6794872283935547,
+            "l2_over_vocab": 248.73896983412337,
+            "max_abs": 2.03369140625
+          },
+          "triple": {
+            "delta_fork_margin": 0.8370647430419922,
+            "l2_over_vocab": 218.50102357150112,
+            "max_abs": 1.9898700714111328
+          }
+        },
+        "reference_triple": {
+          "first_token_top5": [
+            [
+              271,
+              "\n\n",
+              23.1726
+            ],
+            [
+              198,
+              "\n",
+              20.5792
+            ],
+            [
+              38256,
+              " Provide",
+              18.588
+            ],
+            [
+              5272,
+              " Use",
+              18.0482
+            ],
+            [
+              561,
+              " The",
+              17.6974
+            ]
+          ],
+          "fork_margin_fence_minus_think": -0.10346794128417969,
+          "second_token_top5": [
+            [
+              248068,
+              "<think>",
+              17.819
+            ],
+            [
+              71093,
+              "```",
+              17.7155
+            ],
+            [
+              2,
+              "#",
+              15.8715
+            ],
+            [
+              1206,
+              "To",
+              15.7909
+            ],
+            [
+              8160,
+              "Here",
+              15.4875
+            ]
+          ]
+        },
+        "reference_w0": {
+          "first_token_top5": [
+            [
+              271,
+              "\n\n",
+              21.7572
+            ],
+            [
+              198,
+              "\n",
+              19.1161
+            ],
+            [
+              38256,
+              " Provide",
+              19.0502
+            ],
+            [
+              5272,
+              " Use",
+              18.2452
+            ],
+            [
+              3054,
+              " Do",
+              17.6119
+            ]
+          ],
+          "fork_margin_fence_minus_think": -0.9405326843261719,
+          "second_token_top5": [
+            [
+              248068,
+              "<think>",
+              18.023
+            ],
+            [
+              71093,
+              "```",
+              17.0825
+            ],
+            [
+              8160,
+              "Here",
+              16.6694
+            ],
+            [
+              1206,
+              "To",
+              16.5486
+            ],
+            [
+              760,
+              "The",
+              15.7935
+            ]
+          ]
+        },
+        "repeat_single_whole_w0_max_abs_logit_diff": [
+          0.0,
+          0.0
+        ]
+      },
+      "p2_by_variant": {
+        "all8_split_55_4": {
+          "fv_solo_delta_corr_min": 0.9983509533809619,
+          "n_rows": 8,
+          "rows_where_triple_top1_equals_w0_top1": [
+            0,
+            1,
+            2,
+            6,
+            7
+          ],
+          "triple_delta_corr_min": 0.9974373495226906,
+          "triple_delta_projection_min_max": [
+            0.9872925641341607,
+            1.0831015200757668
+          ],
+          "triple_fork_margin_min_max": [
+            -0.05582618713378906,
+            0.07132530212402344
+          ],
+          "triple_top1_set": [
+            71093,
+            248068
+          ],
+          "w0_fork_margin_min_max": [
+            -1.0091705322265625,
+            -0.8391246795654297
+          ],
+          "w0_noise_vs_ref_l2_max": 41.89283230089615,
+          "w0_noise_vs_ref_max_abs_logit": 0.41468143463134766,
+          "w0_top1_set": [
+            248068
+          ]
+        },
+        "all8_whole": {
+          "fv_solo_delta_corr_min": 0.9981266408380928,
+          "n_rows": 8,
+          "rows_where_triple_top1_equals_w0_top1": [
+            0,
+            1,
+            2,
+            6
+          ],
+          "triple_delta_corr_min": 0.9969647731056583,
+          "triple_delta_projection_min_max": [
+            0.9930853516926179,
+            1.1110436658117449
+          ],
+          "triple_fork_margin_min_max": [
+            -0.1019287109375,
+            0.12012481689453125
+          ],
+          "triple_top1_set": [
+            71093,
+            248068
+          ],
+          "w0_fork_margin_min_max": [
+            -1.0376853942871094,
+            -0.802459716796875
+          ],
+          "w0_noise_vs_ref_l2_max": 33.139151906837576,
+          "w0_noise_vs_ref_max_abs_logit": 0.4624161720275879,
+          "w0_top1_set": [
+            248068
+          ]
+        },
+        "mixed_server_log": {
+          "fv_solo_delta_corr_min": 0.9983249054433068,
+          "n_rows": 8,
+          "rows_where_triple_top1_equals_w0_top1": [
+            3
+          ],
+          "triple_delta_corr_min": 0.9973770901090788,
+          "triple_delta_projection_min_max": [
+            1.0024520947892062,
+            1.0703172444276126
+          ],
+          "triple_fork_margin_min_max": [
+            -0.03322601318359375,
+            0.11924171447753906
+          ],
+          "triple_top1_set": [
+            71093,
+            248068
+          ],
+          "w0_fork_margin_min_max": [
+            -0.9190406799316406,
+            -0.8393821716308594
+          ],
+          "w0_noise_vs_ref_l2_max": 32.19855140902954,
+          "w0_noise_vs_ref_max_abs_logit": 0.3924233913421631,
+          "w0_top1_set": [
+            248068
+          ]
+        },
+        "single_split_55_4": {
+          "fv_solo_delta_corr_min": 0.9986281436557077,
+          "n_rows": 1,
+          "rows_where_triple_top1_equals_w0_top1": [],
+          "triple_delta_corr_min": 0.9974213725971368,
+          "triple_delta_projection_min_max": [
+            1.0853717143643857,
+            1.0853717143643857
+          ],
+          "triple_fork_margin_min_max": [
+            0.07822799682617188,
+            0.07822799682617188
+          ],
+          "triple_top1_set": [
+            71093
+          ],
+          "w0_fork_margin_min_max": [
+            -0.8180294036865234,
+            -0.8180294036865234
+          ],
+          "w0_noise_vs_ref_l2_max": 25.83410061496864,
+          "w0_noise_vs_ref_max_abs_logit": 0.2639944553375244,
+          "w0_top1_set": [
+            248068
+          ]
+        },
+        "single_whole": {
+          "fv_solo_delta_corr_min": 1.0,
+          "n_rows": 1,
+          "rows_where_triple_top1_equals_w0_top1": [
+            0
+          ],
+          "triple_delta_corr_min": 0.9999999999999999,
+          "triple_delta_projection_min_max": [
+            1.0,
+            1.0
+          ],
+          "triple_fork_margin_min_max": [
+            -0.10346794128417969,
+            -0.10346794128417969
+          ],
+          "triple_top1_set": [
+            248068
+          ],
+          "w0_fork_margin_min_max": [
+            -0.9405326843261719,
+            -0.9405326843261719
+          ],
+          "w0_noise_vs_ref_l2_max": 0.0,
+          "w0_noise_vs_ref_max_abs_logit": 0.0,
+          "w0_top1_set": [
+            248068
+          ]
+        }
+      },
+      "source": "m1/out/probe_analysis_v1.json",
+      "source_sha256": "9d502146e06576e67278055ddd203d2c26b7f62036d9453732b47b19063a658e"
+    },
+    "lora_adapters": [
+      {
+        "file": "corpus.f16.gguf",
+        "id": 0,
+        "scale": 0.0
+      },
+      {
+        "file": "weft-eido.f16.gguf",
+        "id": 1,
+        "scale": 0.0
+      },
+      {
+        "file": "formal-verification.f16.gguf",
+        "id": 2,
+        "scale": 0.0
+      }
+    ],
+    "lora_changes_output": true,
+    "lora_files": [
+      "corpus.f16.gguf",
+      "weft-eido.f16.gguf",
+      "formal-verification.f16.gguf"
+    ],
+    "mode": "smoke",
+    "model_file": "Qwen3.5-4B-Q8_0.gguf",
+    "parallel_slots": 8,
+    "per_slot_lora_consistency": {
+      "classification_rule": "first 60 chars of output vs single-slot W0 / triple-LoRA references (greedy, seed 42)",
+      "lora_shaped": 7,
+      "other": 0,
+      "triple_lora_requests": 24,
+      "w0_identical": 17,
+      "w0_identical_slots_by_round": [
+        [
+          0,
+          1,
+          2,
+          6,
+          7
+        ],
+        [
+          0,
+          1,
+          2,
+          6,
+          7
+        ],
+        [
+          0,
+          1,
+          2,
+          3,
+          5,
+          6,
+          7
+        ]
+      ],
+      "w0_requests_8slot": 8,
+      "w0_requests_that_came_back_lora_shaped": 0
+    },
+    "schema": "geminus-mlos-gpu-workload/v0.1",
+    "server_flags": [
+      "-m",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "59362",
+      "-c",
+      "65536",
+      "-ngl",
+      "99",
+      "-np",
+      "8",
+      "-ctk",
+      "f16",
+      "-ctv",
+      "f16",
+      "--slots",
+      "--no-cache-idle-slots",
+      "--lora-scaled",
+      "corpus.f16.gguf:0.0,weft-eido.f16.gguf:0.0,formal-verification.f16.gguf:0.0",
+      "--lora-init-without-apply"
+    ],
+    "server_level_logprob_test": {
+      "reading": "An adapter-sized shift reached every request in both runs. On this prompt the margin sees the formal-verification adapter only: fv alone gives a margin on the adapter side, corpus alone, design alone and corpus+design all give margins on the W0 side. The test does not show that all three adapters were applied. The server never batches different adapter configurations together, so the mixed rounds equal the two single-request references exactly; the effective sample is the distinct margins counted in run 2.",
+      "run_v1": {
+        "build_info": "b12549-8af68d486",
+        "decision_threshold_margin_midpoint": -0.3699007034301758,
+        "per_round": [
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0225,
+              -0.1161,
+              0.0202,
+              0.0182,
+              0.0252,
+              0.031,
+              0.186,
+              0.0005
+            ],
+            "name": "triple_x8_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0968,
+              -0.0064,
+              -0.0255,
+              0.0879,
+              0.0879,
+              0.0074,
+              0.0649,
+              0.0649
+            ],
+            "name": "triple_x8_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0413,
+              -0.0295,
+              -0.0295,
+              -0.0522,
+              0.0456,
+              -0.0253,
+              -0.1271,
+              -0.0187
+            ],
+            "name": "triple_x8_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0677,
+              -0.0074,
+              -0.0074,
+              0.0879,
+              0.0879,
+              0.0074,
+              0.0649,
+              0.0649
+            ],
+            "name": "triple_x8_r3",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0539,
+              -0.0539,
+              -0.0558,
+              0.0713,
+              0.0148,
+              0.0608,
+              -0.0104,
+              -0.0011
+            ],
+            "name": "triple_x8_r4",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0074,
+              -0.0074,
+              0.1089,
+              0.1089,
+              -0.0656,
+              0.0571,
+              -0.0288,
+              -0.0773
+            ],
+            "name": "triple_x8_r5",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -1.0092,
+              -1.0092,
+              -0.9438,
+              -0.8391,
+              -0.9243,
+              -0.8717,
+              -0.8919,
+              -0.8825
+            ],
+            "name": "w0_x8_r0",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -0.7639,
+              -0.998,
+              -0.998,
+              -0.885,
+              -0.885,
+              -0.8759,
+              -0.9426,
+              -0.9426
+            ],
+            "name": "w0_x8_r1",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -0.8317,
+              -0.8899,
+              -0.8268,
+              -0.8268,
+              -0.9859,
+              -0.8538,
+              -0.9399,
+              -0.9723
+            ],
+            "name": "w0_x8_r2",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r0",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r1",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r2",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0389,
+              0.1132,
+              0.1132,
+              -0.1021,
+              0.1401,
+              -0.0345,
+              -0.0512,
+              0.0193
+            ],
+            "name": "triple_x8_staggered_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0389,
+              0.1132,
+              0.1132,
+              -0.1021,
+              0.1401,
+              -0.0345,
+              -0.0512,
+              0.0193
+            ],
+            "name": "triple_x8_staggered_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              -0.0345,
+              -0.0345,
+              -0.0347,
+              0.0193,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          }
+        ],
+        "source": "m1/out/server_logit_check_v1.json",
+        "source_sha256": "ba364a01c125d8e3a4e8f079bf31f1988de74952aa6b652947b8893d8761e355",
+        "summary": {
+          "gap_between_clusters": 0.6368484497070312,
+          "reference_margin_triple": 0.07822799682617188,
+          "reference_margin_w0": -0.8180294036865234,
+          "slot_served_equals_requested": true,
+          "triple_classified_triple": 84,
+          "triple_margin_max": 0.1859874725341797,
+          "triple_margin_min": -0.1270962953567505,
+          "triple_requests": 84,
+          "triple_requests_whose_second_token_is_think": 33,
+          "triple_requests_with_margin": 84,
+          "w0_classified_w0": 36,
+          "w0_margin_max": -0.7639447450637817,
+          "w0_margin_min": -1.0091705322265625,
+          "w0_requests": 36,
+          "w0_requests_with_margin": 36
+        }
+      },
+      "run_v2": {
+        "build_info": "b12549-8af68d486",
+        "decision_threshold_margin_midpoint": -0.3699007034301758,
+        "per_round": [
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0677,
+              0.0968,
+              -0.0064,
+              -0.0255,
+              0.0879,
+              0.0879,
+              0.0895,
+              0.0649
+            ],
+            "name": "triple_x8_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.0074,
+              -0.0074,
+              0.1089,
+              0.1089,
+              -0.0656,
+              0.0571,
+              -0.0288,
+              -0.0773
+            ],
+            "name": "triple_x8_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0677,
+              0.0225,
+              0.1089,
+              0.1089,
+              -0.0656,
+              0.0571,
+              -0.0288,
+              -0.0773
+            ],
+            "name": "triple_x8_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0225,
+              -0.1161,
+              0.0202,
+              0.0182,
+              0.0252,
+              0.031,
+              0.186,
+              0.0005
+            ],
+            "name": "triple_x8_r3",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              -0.1108,
+              0.1365,
+              0.0196,
+              0.0221,
+              0.0367,
+              0.0879,
+              0.1175,
+              0.0649
+            ],
+            "name": "triple_x8_r4",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0968,
+              -0.0064,
+              -0.0255,
+              0.0879,
+              0.0879,
+              0.0074,
+              0.0649,
+              0.0649
+            ],
+            "name": "triple_x8_r5",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "<think>",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -1.0092,
+              -1.0092,
+              -0.9438,
+              -0.8391,
+              -0.9243,
+              -0.8717,
+              -0.8919,
+              -0.8825
+            ],
+            "name": "w0_x8_r0",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -0.8435,
+              -0.8435,
+              -0.8527,
+              -0.927,
+              -0.8113,
+              -0.8113,
+              -0.8792,
+              -0.806
+            ],
+            "name": "w0_x8_r1",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "margins": [
+              -1.0092,
+              -1.0092,
+              -0.9438,
+              -0.8391,
+              -0.9243,
+              -0.8717,
+              -0.8919,
+              -0.8825
+            ],
+            "name": "w0_x8_r2",
+            "requested": [
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0",
+              "w0"
+            ],
+            "second_token": [
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>",
+              "<think>"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r0",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r1",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "margins": [
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782,
+              -0.818,
+              0.0782
+            ],
+            "name": "mixed_4w0_4triple_r2",
+            "requested": [
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple",
+              "w0",
+              "triple"
+            ],
+            "second_token": [
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```",
+              "<think>",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              0.0566,
+              0.0566,
+              -0.0213,
+              0.0331,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r0",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              0.0566,
+              0.0461,
+              0.0331,
+              0.0433,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r1",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          },
+          {
+            "classified": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "margins": [
+              0.0782,
+              0.0566,
+              0.0566,
+              -0.0213,
+              0.0331,
+              0.0566,
+              0.0461,
+              0.0331
+            ],
+            "name": "triple_x8_staggered_r2",
+            "requested": [
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple",
+              "triple"
+            ],
+            "second_token": [
+              "```",
+              "```",
+              "```",
+              "<think>",
+              "```",
+              "```",
+              "```",
+              "```"
+            ]
+          }
+        ],
+        "single_request_references_by_adapter_subset": {
+          "corpus_and_weft_eido": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 1.0
+              },
+              {
+                "id": 1,
+                "scale": 1.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.6341400146484375,
+            "second_token": "<think>"
+          },
+          "corpus_only": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 1.0
+              },
+              {
+                "id": 1,
+                "scale": 0.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.9251994490623474,
+            "second_token": "<think>"
+          },
+          "formal_verification_only": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 0.0
+              },
+              {
+                "id": 1,
+                "scale": 0.0
+              },
+              {
+                "id": 2,
+                "scale": 1.0
+              }
+            ],
+            "margin": -0.13101577758789062,
+            "second_token": "<think>"
+          },
+          "three_again": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 1.0
+              },
+              {
+                "id": 1,
+                "scale": 1.0
+              },
+              {
+                "id": 2,
+                "scale": 1.0
+              }
+            ],
+            "margin": 0.07822799682617188,
+            "second_token": "```"
+          },
+          "w0_again": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 0.0
+              },
+              {
+                "id": 1,
+                "scale": 0.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.8180294036865234,
+            "second_token": "<think>"
+          },
+          "weft_eido_only": {
+            "lora_echo": [
+              {
+                "id": 0,
+                "scale": 0.0
+              },
+              {
+                "id": 1,
+                "scale": 1.0
+              },
+              {
+                "id": 2,
+                "scale": 0.0
+              }
+            ],
+            "margin": -0.5338401794433594,
+            "second_token": "<think>"
+          }
+        },
+        "source": "m1/out/server_logit_check_v2.json",
+        "source_sha256": "da8bf85b7afca7e0d6ff543c176330d07593531346964af5ad6e9848d31fcdc4",
+        "summary": {
+          "distinct_triple_margins": 34,
+          "distinct_w0_margins": 14,
+          "gap_between_clusters": 0.6899223327636719,
+          "lora_echo_matches_request": true,
+          "mixed_rounds_note": {
+            "distinct_margins": [
+              -0.818029,
+              0.078228
+            ],
+            "equal_to_single_request_references": true,
+            "n": 24
+          },
+          "reference_margin_triple": 0.07822799682617188,
+          "reference_margin_w0": -0.8180294036865234,
+          "slot_served_equals_requested": true,
+          "triple_classified_triple": 84,
+          "triple_margin_max": 0.1859874725341797,
+          "triple_margin_min": -0.11607742309570312,
+          "triple_requests": 84,
+          "triple_requests_whose_second_token_is_think": 16,
+          "triple_requests_with_margin": 84,
+          "w0_classified_w0": 36,
+          "w0_margin_max": -0.805999755859375,
+          "w0_margin_min": -1.0091705322265625,
+          "w0_requests": 36,
+          "w0_requests_with_margin": 36
+        }
+      }
+    },
+    "server_load_s": 18.49,
+    "server_props": {
+      "build_info": "b12549-8af68d486",
+      "n_ctx_per_slot": 8192,
+      "total_slots": 8
+    },
+    "telemetry": {
+      "baseline_vram_used_mib": 0.0,
+      "clocks_event_reasons_histogram": {
+        "0x0000000000000000": 57,
+        "0x0000000000000001": 33,
+        "0x0000000000000004": 22
+      },
+      "hw_thermal_samples": 0,
+      "interval_s": 0.5,
+      "peak_vram_used_gib": 6.93,
+      "peak_vram_used_mib": 7096.0,
+      "power_max_w": 84.99,
+      "power_mean_load_w": 62.4,
+      "samples": 112,
+      "sm_clock_max_mhz": 1725.0,
+      "sm_clock_mean_load_mhz": 1645.0,
+      "sw_power_cap_samples": 22,
+      "sw_thermal_samples": 0,
+      "temp_max_c": 77.0,
+      "temp_mean_load_c": 72.1,
+      "util_mean_load_pct": 48.5,
+      "vram_gate_mib": 7372,
+      "vram_gate_passed": true
+    },
+    "text_rerun_content_hashes": {
+      "three_adapter_requests_by_class_and_hash": {
+        "lora_shaped:0746031b": 5,
+        "lora_shaped:bfbbe219": 2,
+        "w0_identical:40f98d5d": 2,
+        "w0_identical:fd85f879": 15
+      },
+      "three_adapter_requests_equal_to_any_w0_output_in_full": 0,
+      "w0_8slot_hashes": {
+        "397b12ac": 1,
+        "b4dd9faf": 7
+      },
+      "w0_single_hash": "397b12ac"
+    },
+    "triple_lora_8slot_rounds": [
+      [
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.426418391499574,
+          "prompt_n": 59,
+          "slot": 0,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.43353315075617,
+          "prompt_n": 59,
+          "slot": 1,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.442583653847002,
+          "prompt_n": 59,
+          "slot": 2,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "lora_shaped",
+          "content_sha256": "bfbbe219e055f7fcb16fe26033adc4353c1483bc09177b3272e8b1da49372a86",
+          "predicted_n": 128,
+          "predicted_per_second": 22.450264267894234,
+          "prompt_n": 59,
+          "slot": 3,
+          "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+        },
+        {
+          "class": "lora_shaped",
+          "content_sha256": "0746031b55506dbbc2b2b6e8be89b49d16b231c3fec48adf9d1ddd1057e4f007",
+          "predicted_n": 128,
+          "predicted_per_second": 22.458025596490465,
+          "prompt_n": 59,
+          "slot": 4,
+          "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+        },
+        {
+          "class": "lora_shaped",
+          "content_sha256": "0746031b55506dbbc2b2b6e8be89b49d16b231c3fec48adf9d1ddd1057e4f007",
+          "predicted_n": 128,
+          "predicted_per_second": 22.482822327106657,
+          "prompt_n": 59,
+          "slot": 5,
+          "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "40f98d5d2390c74856df0e9da19b3022b0d8146a793988d5ba6887049a2194e9",
+          "predicted_n": 128,
+          "predicted_per_second": 22.514157771062923,
+          "prompt_n": 59,
+          "slot": 6,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.522646343554772,
+          "prompt_n": 59,
+          "slot": 7,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        }
+      ],
+      [
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.613271568832214,
+          "prompt_n": 59,
+          "slot": 0,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.61733902197996,
+          "prompt_n": 59,
+          "slot": 1,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.639465794173745,
+          "prompt_n": 59,
+          "slot": 2,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "lora_shaped",
+          "content_sha256": "bfbbe219e055f7fcb16fe26033adc4353c1483bc09177b3272e8b1da49372a86",
+          "predicted_n": 128,
+          "predicted_per_second": 22.6328974332334,
+          "prompt_n": 59,
+          "slot": 3,
+          "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+        },
+        {
+          "class": "lora_shaped",
+          "content_sha256": "0746031b55506dbbc2b2b6e8be89b49d16b231c3fec48adf9d1ddd1057e4f007",
+          "predicted_n": 128,
+          "predicted_per_second": 22.636984055007517,
+          "prompt_n": 59,
+          "slot": 4,
+          "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+        },
+        {
+          "class": "lora_shaped",
+          "content_sha256": "0746031b55506dbbc2b2b6e8be89b49d16b231c3fec48adf9d1ddd1057e4f007",
+          "predicted_n": 128,
+          "predicted_per_second": 22.63952229538373,
+          "prompt_n": 59,
+          "slot": 5,
+          "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "40f98d5d2390c74856df0e9da19b3022b0d8146a793988d5ba6887049a2194e9",
+          "predicted_n": 128,
+          "predicted_per_second": 22.64461259703751,
+          "prompt_n": 59,
+          "slot": 6,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 22.647063701197137,
+          "prompt_n": 59,
+          "slot": 7,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        }
+      ],
+      [
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 19.297102289380867,
+          "prompt_n": 59,
+          "slot": 0,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 20.613222262150195,
+          "prompt_n": 59,
+          "slot": 1,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 20.6195074178272,
+          "prompt_n": 59,
+          "slot": 2,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 20.626138091832114,
+          "prompt_n": 59,
+          "slot": 3,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "lora_shaped",
+          "content_sha256": "0746031b55506dbbc2b2b6e8be89b49d16b231c3fec48adf9d1ddd1057e4f007",
+          "predicted_n": 128,
+          "predicted_per_second": 20.633148468987887,
+          "prompt_n": 59,
+          "slot": 4,
+          "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 21.490732586922398,
+          "prompt_n": 59,
+          "slot": 5,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 21.496418138169833,
+          "prompt_n": 59,
+          "slot": 6,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        },
+        {
+          "class": "w0_identical",
+          "content_sha256": "fd85f87943318d78b03b4c3a8197fe0cd767652204596636217febb95e1e6132",
+          "predicted_n": 128,
+          "predicted_per_second": 21.502692831323902,
+          "prompt_n": 59,
+          "slot": 7,
+          "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+        }
+      ]
+    ],
+    "triple_lora_single": {
+      "class": "lora_shaped",
+      "content_sha256": "0746031b55506dbbc2b2b6e8be89b49d16b231c3fec48adf9d1ddd1057e4f007",
+      "predicted_n": 128,
+      "predicted_per_second": 53.67892983656668,
+      "prompt_n": 59,
+      "slot": 0,
+      "text_head": "\n\n```lean4\ntheorem sum_first_n_odd (n : ℕ) :\n  (∑ i in Finset.range n, 2 * i + 1"
+    },
+    "vram_prediction": {
+      "architecture": "qwen35",
+      "full_attention_interval": 4,
+      "key_length": 256,
+      "kv_cache_mib": 2048.0,
+      "lora_files_mib": 0.5,
+      "method": "GGUF metadata + -c argv; f16 K/V; compute buffers and linear-attention recurrent state not modelled",
+      "model_file_mib": 4274.8,
+      "n_attention_layers_with_kv": 8,
+      "n_ctx_total": 65536,
+      "n_ctx_total_source": "parsed from the recorded llama-server flags of this run",
+      "n_head_kv": 4,
+      "n_layer": 32,
+      "predicted_mib_excl_compute_and_recurrent": 6323.3,
+      "value_length": 256
+    },
+    "vram_release_wait_s": 0.2,
+    "w0_8slot": [
+      {
+        "class": "w0_identical",
+        "content_sha256": "b4dd9faf4810408d9e727668d15000cd9c030fb78f4cbaf07e86c3e8714d1725",
+        "predicted_n": 128,
+        "predicted_per_second": 22.27559399976181,
+        "prompt_n": 59,
+        "slot": 0,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      },
+      {
+        "class": "w0_identical",
+        "content_sha256": "b4dd9faf4810408d9e727668d15000cd9c030fb78f4cbaf07e86c3e8714d1725",
+        "predicted_n": 128,
+        "predicted_per_second": 22.23404536550582,
+        "prompt_n": 59,
+        "slot": 1,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      },
+      {
+        "class": "w0_identical",
+        "content_sha256": "b4dd9faf4810408d9e727668d15000cd9c030fb78f4cbaf07e86c3e8714d1725",
+        "predicted_n": 128,
+        "predicted_per_second": 22.241911081042694,
+        "prompt_n": 59,
+        "slot": 2,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      },
+      {
+        "class": "w0_identical",
+        "content_sha256": "b4dd9faf4810408d9e727668d15000cd9c030fb78f4cbaf07e86c3e8714d1725",
+        "predicted_n": 128,
+        "predicted_per_second": 22.243862795650713,
+        "prompt_n": 59,
+        "slot": 3,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      },
+      {
+        "class": "w0_identical",
+        "content_sha256": "b4dd9faf4810408d9e727668d15000cd9c030fb78f4cbaf07e86c3e8714d1725",
+        "predicted_n": 128,
+        "predicted_per_second": 22.25109218697575,
+        "prompt_n": 59,
+        "slot": 4,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      },
+      {
+        "class": "w0_identical",
+        "content_sha256": "b4dd9faf4810408d9e727668d15000cd9c030fb78f4cbaf07e86c3e8714d1725",
+        "predicted_n": 128,
+        "predicted_per_second": 22.255042081305554,
+        "prompt_n": 59,
+        "slot": 5,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      },
+      {
+        "class": "w0_identical",
+        "content_sha256": "397b12ac45c9027dc92992cbe8bf4c8d0ace9dee29a3382b03f34288dc22ceff",
+        "predicted_n": 128,
+        "predicted_per_second": 22.262914857147464,
+        "prompt_n": 59,
+        "slot": 6,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      },
+      {
+        "class": "w0_identical",
+        "content_sha256": "b4dd9faf4810408d9e727668d15000cd9c030fb78f4cbaf07e86c3e8714d1725",
+        "predicted_n": 128,
+        "predicted_per_second": 22.268454104628418,
+        "prompt_n": 59,
+        "slot": 7,
+        "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+      }
+    ],
+    "w0_single": {
+      "class": "w0_identical",
+      "content_sha256": "397b12ac45c9027dc92992cbe8bf4c8d0ace9dee29a3382b03f34288dc22ceff",
+      "predicted_n": 128,
+      "predicted_per_second": 53.09395623552981,
+      "prompt_n": 59,
+      "slot": 0,
+      "text_head": "\n\n<think>\n\n</think>\n\nTo prove that the sum of the first $n$ odd natural numbers "
+    },
+    "workload_ok": true
+  }
+}

@@ -1,0 +1,74 @@
+{
+ "schema": "geminus-passthrough-vs-live/v2",
+ "n_held_out_states": 112,
+ "by_layer": {
+  "28": {
+   "passthrough_first_order_pred_gain_heldout": 1.0814482477391518,
+   "live_gain_heldout": 0.3439629886831556,
+   "live_over_first_order_pred": 0.31805774284829247,
+   "pred_dh_norm_mean": 1.4693918072716474,
+   "live_eta_mean_scale1": 0.0027470429476060204,
+   "live_cost_eta_over_gain_sq_scale1": 0.02321892034054148
+  },
+  "29": {
+   "passthrough_first_order_pred_gain_heldout": 1.2322952638354496,
+   "live_gain_heldout": 0.5050735516207558,
+   "live_over_first_order_pred": 0.4098640694672013,
+   "pred_dh_norm_mean": 2.205173500593489,
+   "live_eta_mean_scale1": 0.0038221755988600606,
+   "live_cost_eta_over_gain_sq_scale1": 0.014983089763601706
+  },
+  "30": {
+   "passthrough_first_order_pred_gain_heldout": 2.4603035308078183,
+   "live_gain_heldout": 0.6443497027669635,
+   "live_over_first_order_pred": 0.26189845874642836,
+   "pred_dh_norm_mean": 2.6051351801644604,
+   "live_eta_mean_scale1": 0.0038021087181630505,
+   "live_cost_eta_over_gain_sq_scale1": 0.009157591484410676
+  },
+  "31": {
+   "passthrough_first_order_pred_gain_heldout": 5.347557072011317,
+   "live_gain_heldout": 5.182777792215347,
+   "live_over_first_order_pred": 0.9691860642949636,
+   "pred_dh_norm_mean": 7.936204943257932,
+   "live_eta_mean_scale1": 0.026994186465341557,
+   "live_cost_eta_over_gain_sq_scale1": 0.001004951412928165,
+   "exact_float64_gain_heldout": 5.184891741697405,
+   "live_over_exact_float64": 0.9995922866691589,
+   "anchors_float64_dh_over_R0_at_only31_scale": 0.0005260626253964367,
+   "anchors_live_dh_over_R0_at_only31_scale": 0.0013953862271334518,
+   "only31_scale": 0.5,
+   "anchors_float64_dh_norm_mean": 0.028115957443862017
+  }
+ },
+ "uniform_cost_from_scale1_costs_added_incoherently": 0.0030227845625926267,
+ "uniform_over_only31_from_scale1_costs": 3.007891250966079,
+ "held_out_independence": {
+  "prompt_id_overlap": 0,
+  "n_train_prompts": 64,
+  "n_held_out_prompts": 32,
+  "families_train": [
+   "A",
+   "B",
+   "C",
+   "D"
+  ],
+  "families_held_out": [
+   "A",
+   "B",
+   "C",
+   "D"
+  ],
+  "nearest_train_prompt_similarity_median": 0.7097274733067938,
+  "nearest_train_prompt_similarity_frac_above_0.8": 0.375,
+  "held_out_states_reusing_a_training_pos_neg_token_pair_frac": 0.9821428571428571,
+  "split_rule": "every third prompt id (sorted) held out",
+  "anchors_note": "the 24 anchors evaluated are the same anchors used as preservation keys at compile time"
+ },
+ "base_model_on_formal_verification_states": {
+  "n": 332,
+  "positive_token_is_top1_frac": 0.5451807228915663,
+  "positive_beats_every_listed_negative_frac": 0.8855421686746988,
+  "median_margin_vs_listed_negatives": 8.700458765029907
+ }
+}

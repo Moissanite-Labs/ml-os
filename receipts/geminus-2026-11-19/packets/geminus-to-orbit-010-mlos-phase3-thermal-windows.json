@@ -1,0 +1,450 @@
+{
+  "artifact_sha256": {
+    "010-thermal-workload-with-minutes.json": "af3584877db009799edcf9ede320b97e72cd71bd33a8d2f269a86db842f21b4f",
+    "gpu_workload_v1.py": "7e8ca19374329fe1213a866539432df0e54f40bf4bd80bd4bae2c3e851b1f8d3",
+    "thermal-nvsmi.csv": "c195779765a34a5bee890192929fcf15626c20e804318abc9b75267ed8e500a8",
+    "thermal-server.log": "60b57f314fe3761fabef6b4f156c991ad677e1e393d05fe7dc57906ade531563",
+    "thermal-stamp.json": "e2eddb95ab2b856c80ecc292ee46d82030b68a8084bd5fc34e939facbad98605",
+    "thermal-workload.json": "b8b95985e87b29f3e58ee65cabcc2c411cb595c6c0db0cdb583ce7b56016e422"
+  },
+  "gates": {
+    "no_thermal_slowdown": {
+      "measured": "sw_thermal_samples=69, hw_thermal_samples=0 of 748 (1 s); first SwThermalSlowdown at t+672.9 s",
+      "passed": false,
+      "threshold": "0 samples with SwThermalSlowdown (0x20) or HwThermalSlowdown (0x40)"
+    },
+    "peak_vram_le_7372_mib": {
+      "measured": "7013 MiB over 748 samples",
+      "passed": true,
+      "threshold": "<= 7372 MiB (7.2 GiB)"
+    },
+    "stamp_strict_anomalies_clean": {
+      "measured": "clean_hardware_run=True, anomalies=[], exit_code=0. The stamper takes start and end snapshots only and did not see the slowdown during the run.",
+      "passed": true,
+      "threshold": "mlos stamp-run --zone B --strict-anomalies: clean_hardware_run=true"
+    },
+    "sustained_15min_completed": {
+      "measured": "actual 743.0 s of 900 s, 102 rounds, 208896 tokens, abort_reason=ABORT_TEMP_GE_87C_FOR_30S",
+      "passed": false,
+      "threshold": ">= 900 s sustained 8-slot generation with no abort"
+    },
+    "temp_below_87c_abort_rule": {
+      "measured": "max 88.0 C; longest run >= 87 C: 37 consecutive 1 s samples spanning 36.3 s; first 87 C at t+671.9 s",
+      "passed": false,
+      "threshold": "GPU temp never >= 87 C for 30 s (coordinator abort rule, board #27)"
+    },
+    "zero_lingering_compute_vram": {
+      "measured": "end compute_vram_mib=0, released_after_exit=True; stamper snapshots of free MiB at start/end 8018/8018",
+      "passed": true,
+      "threshold": "0 MiB compute VRAM after exit"
+    }
+  },
+  "ml_os_commit": "33c2a4fcaf378952205ea7af7fe87a2517f4b74e",
+  "ml_os_issue": "Moissanite-Labs/ml-os#4 (Phase 3, item 3, Windows-side)",
+  "mlos_run_receipt": {
+    "anomalies": [],
+    "clean_hardware_run": true,
+    "determinism_pins": {
+      "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
+      "HF_HUB_OFFLINE": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "PYTHONHASHSEED": "0",
+      "TORCH_USE_DETERMINISTIC_ALGORITHMS": "1",
+      "TRANSFORMERS_OFFLINE": "1",
+      "VECLIB_MAXIMUM_THREADS": "1"
+    },
+    "determinism_zone": "B",
+    "end_gpu_telemetry": {
+      "clocks_event_reasons": {
+        "bitmask": 1,
+        "decoded_reasons": [
+          "GpuIdle"
+        ],
+        "raw": "0x0000000000000001",
+        "slowdown_active": false,
+        "thermal_throttled": false
+      },
+      "clocks_mem_mhz": 6000,
+      "clocks_sm_mhz": 1245,
+      "compute_processes": [],
+      "compute_vram_mib": 0,
+      "driver_version": "566.07",
+      "gpu_name": "NVIDIA GeForce RTX 3080 Laptop GPU",
+      "memory_free_mib": 8018,
+      "memory_used_mib": 0,
+      "non_compute_desktop_vram_mib": 0,
+      "power_draw_w": 26.18,
+      "power_limit_w": null,
+      "pstate": "P0",
+      "temperature_gpu_c": 85,
+      "vbios_version": "94.04.49.00.51"
+    },
+    "execution": {
+      "command_argc": 22,
+      "command_exe": "python.exe",
+      "duration_ms": 752704.0,
+      "ended_utc": "2026-11-19T21:52:32Z",
+      "exit_code": 0,
+      "started_utc": "2026-11-19T21:39:59Z"
+    },
+    "git_head": "33c2a4fcaf378952205ea7af7fe87a2517f4b74e",
+    "gpu_telemetry_available": true,
+    "host": {
+      "cpu_isa": "x86_64",
+      "host_os": "windows",
+      "os_release": "11",
+      "python_version": "3.12.10"
+    },
+    "profile_id": "ux582hs-rtx3080-8gb",
+    "profile_sha256": "566c9192d38682a0ec4d652a63a3510aaefb9dc20ef91ae9bdc6d4abbbf5cbe2",
+    "receipt_sha256": "9492797f4baa575d4c040ba757f9d87b3ae1ada79bb1d3c5714342f4892efba9",
+    "schema": "mlos-run-receipt/v0.1",
+    "start_gpu_telemetry": {
+      "clocks_event_reasons": {
+        "bitmask": 1,
+        "decoded_reasons": [
+          "GpuIdle"
+        ],
+        "raw": "0x0000000000000001",
+        "slowdown_active": false,
+        "thermal_throttled": false
+      },
+      "clocks_mem_mhz": 6000,
+      "clocks_sm_mhz": 1245,
+      "compute_processes": [],
+      "compute_vram_mib": 0,
+      "driver_version": "566.07",
+      "gpu_name": "NVIDIA GeForce RTX 3080 Laptop GPU",
+      "memory_free_mib": 8018,
+      "memory_used_mib": 0,
+      "non_compute_desktop_vram_mib": 0,
+      "power_draw_w": 20.5,
+      "power_limit_w": null,
+      "pstate": "P0",
+      "temperature_gpu_c": 61,
+      "vbios_version": "94.04.49.00.51"
+    }
+  },
+  "notes": [
+    "Result: the run did NOT complete 15 minutes. It aborted itself at 743 s on the 87 C / 30 s rule and released the GPU cleanly. Three of six gates fail; this packet reports that as the finding.",
+    "Plateau (t+120 s to t+660 s): 82.3 C mean, 83 C max, drifting up by 0.03 C per minute, at 78.9 W and 1512 MHz with SwPowerCap (0x4) active on nearly every sample. There were 14 samples at 84 C during warm-up. Sustained power settled near 78.9 W; brief samples reach 96.6 W (2 samples above 95 W), so the profile's dgpu_power_cap_w=95 W was touched but not sustained. The stamp records no power limit.",
+    "Excursion: the first 84 C sample after the plateau is at t+666.8 s and 87 C is reached 5.1 s later, at t+671.9 s. SwThermalSlowdown begins at t+672.9 s. Power then falls to 54.2 W and SM clock to 860 MHz, and the temperature keeps RISING, from 86.13 C just after onset to 87.78 C in the last 9 s at 52.3 W. It had not reached equilibrium when the run aborted.",
+    "Nothing recorded changes on the GPU in the 60 s before onset: 78.8 W, 1521 MHz, 79.6% utilisation, 7013 MiB. Whether a second process shared the GPU was not recorded.",
+    "What is recorded on the host: the two Opus workers stopped at t+628 s, and the last post from any working agent was at t+653 s, 14 s before the first 84 C sample (39 s after the Opus stop). The stall monitor kept posting to the board until t+2425 s, after the run aborted, so host agent activity did not cease at the excursion. The CPU load of those agents is not recorded. That the plateau was measured during their CPU work, and that the excursion follows the end of that work, are inferences from the timing, not measurements.",
+    "Interpretation (inference, not measured): a step of several degrees within seconds at constant GPU power, with no recovery after a one-third power cut, is not GPU self-heating at constant cooling. It points to a loss of cooling capacity. A fan curve keyed to CPU temperature would fit the timing: if the workers' CPU load ended when they stopped, the fans may have slowed while the GPU was still at about 79 W. Coincidence fits too. This trace has no CPU temperature, fan speed or power-mode channel, so the cause is undetermined.",
+    "Idle GPU temperature was 61 C before the run and 85 C in the last post-run sample, which shows how much heat the chassis was holding.",
+    "Recommendation 1: add CPU package temperature, fan RPM, CPU load and the active ASUS/Windows power mode to the thermal sampler before repeating, and keep the machine otherwise idle, or record what else is running.",
+    "Recommendation 2: treat the margin on this chassis under Windows as about 4.7 C between plateau and the abort threshold. Later GPU jobs in this session paused themselves at 85 C repeatedly (20 pauses in one 15-minute probe). Sustained jobs should carry a temperature guard, and dgpu_power_cap_w should stay provisional until a Linux boot can set it with nvidia-smi -pl.",
+    "Load: llama-server b12549 (cu12.4), Qwen3.5-4B-Q8_0 with 3 F16 LoRAs, 8 slots x 8192 ctx, 8 concurrent 256-token greedy completions per round alternating three-adapter and W0 requests. Harness gpu_workload_v1.py, the version that ran. Lid position and AC state were not recorded.",
+    "Provenance: the worker that started this run stopped on model quota about ten minutes into it. The harness finished and wrote its artifacts with no agent watching. This packet was assembled afterwards from those raw files by the session that took the work over. The run was launched through mlos gpu-lease and mlos stamp-run; the embedded record is the stamp, and no separate lease record is embedded. The raw server log contains a local path and is not shipped; its hash is listed.",
+    "Review: recomputed from raw files by two independent reviewers (rounds 1 and 2); every number reproduced. Round 2 corrected the 95 W wording, the CPU-load attribution and the unrecorded second-process claim; those corrections are applied in this revision. The round-2 fixes were applied by the author; a third, narrow review of the revision is recorded in receipts/REVIEW_ROUND_3.md."
+  ],
+  "overall_passed": false,
+  "packet_id": "geminus-to-orbit-010",
+  "schema": "geminus-to-orbit-mlos-receipt/v0.1",
+  "scrubbed": "user paths, hostnames, tailnet/LAN IPs replaced with placeholders; no keys or tokens",
+  "title": "Sustained RTX 3080 load thermal run, native Windows 11: aborted at 743 s on the 87 C rule; 3 of 6 gates fail",
+  "workload": {
+    "compute_vram_released_after_exit": true,
+    "ctx_per_slot": 8192,
+    "derived": {
+      "after_excursion": {
+        "power_mean_last_9s_w": 52.3,
+        "power_mean_w": 54.2,
+        "sm_clock_mean_mhz": 860.5,
+        "temp_mean_first_15s_c": 86.13,
+        "temp_mean_last_9s_c": 87.78
+      },
+      "early_samples_at_84c_before_t120": 14,
+      "excursion_first_84c_s": 666.8,
+      "excursion_first_85c_s": 668.8,
+      "excursion_first_87c_s": 671.9,
+      "excursion_first_sw_thermal_slowdown_s": 672.9,
+      "excursion_seconds_from_first_84c_to_87c": 5.1,
+      "headroom_c_steady_to_abort_threshold": 4.7,
+      "host_activity": {
+        "cpu_load_of_other_agents": "not recorded",
+        "first_84c_after_last_post_s": 13.8,
+        "first_84c_after_opus_stop_s": 38.8,
+        "last_worker_board_post_at_t_s": 653.0,
+        "opus_workers_stopped_at_t_s": 628.0,
+        "source": "swarm system messages, board timestamps and the monitor session's last_post_time (board seq 47); whole-second resolution",
+        "stall_monitor_last_post_at_t_s": 2425.0
+      },
+      "idle_temp_after_unload_c": 85.0,
+      "idle_temp_before_c": 61.0,
+      "last_60s_before_excursion": {
+        "memory_used_mib_max": 7013.0,
+        "power_mean_w": 78.8,
+        "sm_clock_mean_mhz": 1521,
+        "util_mean_pct": 79.6
+      },
+      "longest_run_ge_87c": {
+        "samples": 37,
+        "span_s": 36.3
+      },
+      "steady_power_mean_w": 78.9,
+      "steady_sm_clock_mean_mhz": 1511.6,
+      "steady_state_window_s": [
+        120,
+        660
+      ],
+      "steady_temp_drift_c_per_min": 0.029,
+      "steady_temp_max_c": 83.0,
+      "steady_temp_mean_c": 82.3,
+      "steady_util_mean_pct": 80.5,
+      "warmup_s_to_80c": 28.2,
+      "warmup_s_to_83c": 42.4
+    },
+    "errors": [],
+    "lora_adapters": [
+      {
+        "file": "corpus.f16.gguf",
+        "id": 0,
+        "scale": 0.0
+      },
+      {
+        "file": "weft-eido.f16.gguf",
+        "id": 1,
+        "scale": 0.0
+      },
+      {
+        "file": "formal-verification.f16.gguf",
+        "id": 2,
+        "scale": 0.0
+      }
+    ],
+    "lora_files": [
+      "corpus.f16.gguf",
+      "weft-eido.f16.gguf",
+      "formal-verification.f16.gguf"
+    ],
+    "mode": "thermal",
+    "model_file": "Qwen3.5-4B-Q8_0.gguf",
+    "parallel_slots": 8,
+    "per_minute_summary": [
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 0,
+        "power_mean_w": 78.0,
+        "samples": 60,
+        "sm_clock_mean_mhz": 1526,
+        "sw_power_cap_samples": 58,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 84.0,
+        "temp_mean_c": 78.5,
+        "util_mean_pct": 80.8
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 1,
+        "power_mean_w": 78.7,
+        "samples": 60,
+        "sm_clock_mean_mhz": 1508,
+        "sw_power_cap_samples": 60,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 84.0,
+        "temp_mean_c": 82.8,
+        "util_mean_pct": 79.5
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 2,
+        "power_mean_w": 79.4,
+        "samples": 59,
+        "sm_clock_mean_mhz": 1503,
+        "sw_power_cap_samples": 57,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.7,
+        "util_mean_pct": 80.4
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 3,
+        "power_mean_w": 79.6,
+        "samples": 60,
+        "sm_clock_mean_mhz": 1520,
+        "sw_power_cap_samples": 60,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.0,
+        "util_mean_pct": 80.4
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 4,
+        "power_mean_w": 79.0,
+        "samples": 59,
+        "sm_clock_mean_mhz": 1527,
+        "sw_power_cap_samples": 58,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 82.0,
+        "temp_mean_c": 82.0,
+        "util_mean_pct": 80.1
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 5,
+        "power_mean_w": 78.1,
+        "samples": 60,
+        "sm_clock_mean_mhz": 1492,
+        "sw_power_cap_samples": 58,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.0,
+        "util_mean_pct": 81.7
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 6,
+        "power_mean_w": 78.3,
+        "samples": 59,
+        "sm_clock_mean_mhz": 1515,
+        "sw_power_cap_samples": 59,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.2,
+        "util_mean_pct": 79.6
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 7,
+        "power_mean_w": 79.3,
+        "samples": 60,
+        "sm_clock_mean_mhz": 1497,
+        "sw_power_cap_samples": 58,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.2,
+        "util_mean_pct": 81.8
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 8,
+        "power_mean_w": 78.9,
+        "samples": 60,
+        "sm_clock_mean_mhz": 1507,
+        "sw_power_cap_samples": 59,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.3,
+        "util_mean_pct": 81.2
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 9,
+        "power_mean_w": 78.6,
+        "samples": 59,
+        "sm_clock_mean_mhz": 1530,
+        "sw_power_cap_samples": 57,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.5,
+        "util_mean_pct": 79.0
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 10,
+        "power_mean_w": 78.9,
+        "samples": 60,
+        "sm_clock_mean_mhz": 1514,
+        "sw_power_cap_samples": 58,
+        "sw_thermal_slowdown_samples": 0,
+        "temp_max_c": 83.0,
+        "temp_mean_c": 82.5,
+        "util_mean_pct": 80.0
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 11,
+        "power_mean_w": 60.9,
+        "samples": 59,
+        "sm_clock_mean_mhz": 1051,
+        "sw_power_cap_samples": 12,
+        "sw_thermal_slowdown_samples": 46,
+        "temp_max_c": 87.0,
+        "temp_mean_c": 85.9,
+        "util_mean_pct": 81.2
+      },
+      {
+        "hw_thermal_slowdown_samples": 0,
+        "minute": 12,
+        "power_mean_w": 52.4,
+        "samples": 23,
+        "sm_clock_mean_mhz": 801,
+        "sw_power_cap_samples": 0,
+        "sw_thermal_slowdown_samples": 23,
+        "temp_max_c": 88.0,
+        "temp_mean_c": 87.3,
+        "util_mean_pct": 82.7
+      }
+    ],
+    "schema": "geminus-mlos-gpu-workload/v0.1",
+    "server_flags": [
+      "-m",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "49722",
+      "-c",
+      "65536",
+      "-ngl",
+      "99",
+      "-np",
+      "8",
+      "-ctk",
+      "f16",
+      "-ctv",
+      "f16",
+      "--slots",
+      "--no-cache-idle-slots",
+      "--lora-scaled",
+      "corpus.f16.gguf:0.0,weft-eido.f16.gguf:0.0,formal-verification.f16.gguf:0.0",
+      "--lora-init-without-apply"
+    ],
+    "server_load_s": 3.05,
+    "server_props": {
+      "build_info": "b12549-8af68d486",
+      "n_ctx_per_slot": 8192,
+      "total_slots": 8
+    },
+    "sustained": {
+      "abort_reason": "ABORT_TEMP_GE_87C_FOR_30S",
+      "actual_duration_s": 743.0,
+      "generated_tokens": 208896,
+      "rounds": 102,
+      "target_duration_s": 900
+    },
+    "telemetry": {
+      "baseline_vram_used_mib": 0.0,
+      "clocks_event_reasons_histogram": {
+        "0x0000000000000000": 18,
+        "0x0000000000000001": 7,
+        "0x0000000000000004": 654,
+        "0x0000000000000020": 69
+      },
+      "hw_thermal_samples": 0,
+      "interval_s": 1.0,
+      "peak_vram_used_gib": 6.849,
+      "peak_vram_used_mib": 7013.0,
+      "power_max_w": 96.62,
+      "power_mean_load_w": 76.5,
+      "samples": 748,
+      "sm_clock_max_mhz": 1725.0,
+      "sm_clock_mean_load_mhz": 1454.0,
+      "sw_power_cap_samples": 654,
+      "sw_thermal_samples": 69,
+      "temp_max_c": 88.0,
+      "temp_mean_load_c": 82.4,
+      "util_mean_load_pct": 80.5,
+      "vram_gate_mib": 7372,
+      "vram_gate_passed": true
+    },
+    "vram_release_wait_s": 0.7,
+    "workload_ok": true
+  }
+}
