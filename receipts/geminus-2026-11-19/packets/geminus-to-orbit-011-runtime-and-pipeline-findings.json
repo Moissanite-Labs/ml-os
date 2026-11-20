@@ -1,0 +1,873 @@
+{
+  "schema": "geminus-to-orbit-runtime-and-pipeline-findings/v2",
+  "packet_id": "geminus-to-orbit-011",
+  "in_reply_to": "not requested; arises from orbit-to-geminus-005 action 1 and from the smoke anomaly that held the swarm's first packet",
+  "title": "Per-slot LoRA delivery and rollback on the RTX 3080, the runtime noise floor, what the shipped adapters do, zero-contrast design pairs, and target-residual preconditioning",
+  "summary": [
+    "A. Per-request adapters reach every slot: 84 of 84 adapter requests and 36 of 36 W0 requests classified correctly by log-probability margin at server level, while 33 of those 84 adapter requests produced W0-like greedy text.",
+    "B. Q8_0 matmuls quantise their input activations to 8 bits on this backend (in the source, and measured for six matmuls). We infer this is the source of batch-composition noise. It sets a floor below which adapter effects cannot be observed.",
+    "Rollback. A last-layer adapter rolls back exactly with no cache flush (16 of 16). Adapters at blk.28..30 leave a trace in KV and recurrent state that is still present 16 tokens later.",
+    "C. The shipped formal-verification adapter moves unrelated chat prompts as much as its own states, while the 24 anchors stay put.",
+    "D. Three of the eight design-pack training pairs carry a zero target and four more a mistimed one.",
+    "E. Preconditioning the target residual with the gate metric roughly halves radial shrinkage at equal gain after compilation and is confirmed live, but raises KL on unrelated prompts. A mixed result."
+  ],
+  "A_per_slot_lora_delivery": {
+    "claim": "Per-request adapters reach every slot of llama-server. The earlier 'W0-like text on some slots' was a near tie at one token plus batch-composition noise.",
+    "server_level_logit_test": {
+      "what": "llama-server b12549, 8 slots, per-request 'lora' field, n_probs log-probabilities at the second generated token of the packet-009 smoke prompt. margin = logprob(```) - logprob(<think>).",
+      "decision_rule_fixed_before_the_run": "a request counts as 'adapters applied' when its margin is above the midpoint of the two single-request reference margins from the same server session",
+      "reference_margin_w0": -0.818,
+      "reference_margin_three_adapters": 0.0782,
+      "adapter_requests": 84,
+      "adapter_requests_classified_as_adapter": 84,
+      "adapter_margin_range": [
+        -0.1271,
+        0.186
+      ],
+      "w0_requests": 36,
+      "w0_requests_classified_as_w0": 36,
+      "w0_margin_range": [
+        -1.0092,
+        -0.7639
+      ],
+      "gap_between_the_two_clusters": 0.6368,
+      "adapter_requests_whose_greedy_second_token_was_think": 33,
+      "rounds": "6 rounds of 8 concurrent adapter requests, 3 of 8 concurrent W0, 3 mixed (4 W0 + 4 adapter, alternating slots), 3 with staggered arrivals in three waves",
+      "slot_served_equals_slot_requested": true
+    },
+    "library_level_probe": {
+      "what": "ctypes on the same llama.dll, adapters set context-wide, full logit vectors, three 8-sequence batch compositions. This does not exercise the server's per-request path; the test above does.",
+      "identical_decode_repeated_max_abs_logit_diff": [
+        0.0,
+        0.0
+      ],
+      "same_tokens_different_batch_composition_max_abs_logit_diff": {
+        "single_whole": 0.0,
+        "single_split_55_4": 0.264,
+        "all8_whole": 0.4624,
+        "all8_split_55_4": 0.4147,
+        "mixed_server_log": 0.3924
+      },
+      "fork_margin_w0_whole_prompt": -0.9405,
+      "fork_margin_three_adapters_whole_prompt": -0.1035,
+      "min_correlation_of_adapter_logit_delta_with_reference_by_composition": {
+        "all8_whole": 0.997,
+        "all8_split_55_4": 0.9974,
+        "mixed_server_log": 0.9974
+      },
+      "projection_on_reference_delta_range": {
+        "all8_whole": [
+          0.993,
+          1.111
+        ],
+        "all8_split_55_4": [
+          0.987,
+          1.083
+        ],
+        "mixed_server_log": [
+          1.002,
+          1.07
+        ]
+      },
+      "rows_of_8_whose_top1_with_adapters_equals_w0_top1": {
+        "all8_whole": 4,
+        "all8_split_55_4": 5,
+        "mixed_server_log": 1
+      }
+    },
+    "cross_checks_and_loose_ends": [
+      "The server's single-request reference margins (-0.8180 and 0.0782) equal the library emulation of the prompt split 55+4 to four decimals (-0.8180 and 0.0782). That split was inferred from source; this confirms it.",
+      "In the strict text re-run (packet 009) rounds 0 and 1 showed slots 0,1,2,6,7 taking the W0-like branch, which is exactly the row set of the library's 8-sequence 55+4 emulation.",
+      "Round 2 of that re-run showed 7 of 8 W0-like after three arrival waves. No library emulation reproduces 7 of 8; the staggered rounds of the server-level test cover that arrival pattern and classify 24 of 24 correctly by margin.",
+      "The library's reconstruction of the first run's mixed batch predicts one W0-like row where that run showed two (the second has margin +0.0096).",
+      "All of this is one prompt and one token position."
+    ],
+    "recommendation": "Test adapter application, rollback and 'adapter changes output' on logits or log-probabilities, not on greedy text. For an identical batch composition require an exact match; otherwise use a margin or delta-correlation test with a threshold set from reference requests."
+  },
+  "B_activation_quantisation_and_noise_floor": {
+    "claim": "With Q8_0 weights the CUDA backend quantises the activation operand of quantised-weight matmuls to 8 bits per block of 32.",
+    "in_the_pinned_source": [
+      "ggml/src/ggml-cuda/mmvq.cu:1562 quantize_row_q8_1_cuda(src1 ...)",
+      "ggml/src/ggml-cuda/mmq.cu:291 quantize_mmq_q8_1_cuda(src1 ...)",
+      "ggml/src/ggml-cuda/quantize.cu:89-90 d = amax / 127.0f; q = roundf(xi / d), over QK8_1 = 32 elements",
+      "ggml/src/ggml-cuda/ggml-cuda.cu selects between these kernels by the number of rows in the batch"
+    ],
+    "measured_for_six_matmuls": {
+      "what": "ffn_up, ffn_gate and ffn_down of blk.28 and blk.31, 372 single-sequence states: relative L2 error between a float64 reconstruction from the harvested input and the runtime's output",
+      "by_layer": {
+        "28": {
+          "ffn_up": {
+            "exact_float64": 0.005315,
+            "float16_input": 0.005318,
+            "q8_block32_input": 2.805e-05,
+            "improvement_factor": 189.5
+          },
+          "ffn_gate": {
+            "exact_float64": 0.003023,
+            "float16_input": 0.003026,
+            "q8_block32_input": 1.388e-05,
+            "improvement_factor": 217.8
+          },
+          "ffn_down": {
+            "exact_float64": 0.008628,
+            "float16_input": 0.00863,
+            "q8_block32_input": 2.999e-05,
+            "improvement_factor": 287.7
+          }
+        },
+        "31": {
+          "ffn_up": {
+            "exact_float64": 0.003675,
+            "float16_input": 0.003676,
+            "q8_block32_input": 9.437e-05,
+            "improvement_factor": 38.9
+          },
+          "ffn_gate": {
+            "exact_float64": 0.003119,
+            "float16_input": 0.00312,
+            "q8_block32_input": 7.995e-05,
+            "improvement_factor": 39.0
+          },
+          "ffn_down": {
+            "exact_float64": 0.004865,
+            "float16_input": 0.004867,
+            "q8_block32_input": 0.0001133,
+            "improvement_factor": 42.9
+          }
+        }
+      },
+      "block_size_is_specific": {
+        "28": {
+          "ffn_up": {
+            "16": 0.004586,
+            "32": 2.805e-05,
+            "64": 0.005422
+          },
+          "ffn_down": {
+            "16": 0.006681,
+            "32": 2.999e-05,
+            "64": 0.008725
+          }
+        },
+        "31": {
+          "ffn_up": {
+            "16": 0.002985,
+            "32": 9.437e-05,
+            "64": 0.003769
+          },
+          "ffn_down": {
+            "16": 0.003806,
+            "32": 0.0001133,
+            "64": 0.004966
+          }
+        }
+      },
+      "size_of_the_activation_rounding_itself": {
+        "28": {
+          "key": 0.006203,
+          "gated_up": 0.00894
+        },
+        "31": {
+          "key": 0.007336,
+          "gated_up": 0.008655
+        }
+      }
+    },
+    "f16_lora_branch": "The LoRA factors are F16, so their matmuls take the float path. Adapter deltas are computed on unquantised activations while the base is not. (Read from the source; not measured separately.)",
+    "link_to_batch_composition_noise": "INFERRED. Kernel choice depends on batch row count in the source, and the noise appears exactly when composition changes, but there is no unquantised control (an F16 GGUF of this model does not fit in 8 GiB).",
+    "resolution_limit": {
+      "final_residual": "about 0.09 in norm, 0.2% of the radius. On the 24 anchors the measured change under the corpus adapter is 0.116 where exact arithmetic predicts 0.069.",
+      "logits": "0.0 for an identical batch; up to 0.26-0.46 across batch compositions on the example prompt",
+      "meaning": "An adapter effect below these levels cannot be observed on this runtime. A leakage bound tighter than the floor is valid arithmetic with no observable consequence here."
+    }
+  },
+  "rollback": {
+    "weight_level": {
+      "statement": "After adapters are applied and removed, the base final residual is restored bit for bit when the batch composition is the same.",
+      "max_abs_diff_after_adapter_sweeps": {
+        "probe_run_5_conditions_20_sequences": 0.0,
+        "live_allocation_run_24_adapter_configurations_152_states": 0.0
+      },
+      "scope": "Each decode started from cleared memory. This is the scale-to-zero step of T-C5, not cache rollback."
+    },
+    "mid_sequence_without_cache_flush": {
+      "what": "Decode a prefix with one single-layer adapter on (scale 1), switch it off WITHOUT clearing memory, decode k more tokens, compare logits with a run that never had the adapter. 16 sequences.",
+      "by_k": {
+        "1": {
+          "blk28": {
+            "max_abs_logit_diff_median": 0.2797,
+            "max_abs_logit_diff_max": 0.5118,
+            "kl_mean": 0.0001043,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk29": {
+            "max_abs_logit_diff_median": 0.19,
+            "max_abs_logit_diff_max": 0.445,
+            "kl_mean": 0.0002082,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk30": {
+            "max_abs_logit_diff_median": 0.117,
+            "max_abs_logit_diff_max": 0.1662,
+            "kl_mean": 3.75e-05,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk31": {
+            "max_abs_logit_diff_median": 0.0,
+            "max_abs_logit_diff_max": 0.0,
+            "kl_mean": 0.0,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 1.0
+          },
+          "clean_repeat_max_abs_diff": 0.0,
+          "flush_then_whole_decode_max_abs_diff": 0.0
+        },
+        "4": {
+          "blk28": {
+            "max_abs_logit_diff_median": 0.1291,
+            "max_abs_logit_diff_max": 0.1642,
+            "kl_mean": 4.157e-05,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk29": {
+            "max_abs_logit_diff_median": 0.1249,
+            "max_abs_logit_diff_max": 0.356,
+            "kl_mean": 3.814e-05,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk30": {
+            "max_abs_logit_diff_median": 0.1014,
+            "max_abs_logit_diff_max": 0.1935,
+            "kl_mean": 3.678e-05,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk31": {
+            "max_abs_logit_diff_median": 0.0,
+            "max_abs_logit_diff_max": 0.0,
+            "kl_mean": 0.0,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 1.0
+          },
+          "clean_repeat_max_abs_diff": 0.0,
+          "flush_then_whole_decode_max_abs_diff": 0.0
+        },
+        "16": {
+          "blk28": {
+            "max_abs_logit_diff_median": 0.1237,
+            "max_abs_logit_diff_max": 0.1833,
+            "kl_mean": 5.794e-05,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk29": {
+            "max_abs_logit_diff_median": 0.1098,
+            "max_abs_logit_diff_max": 0.167,
+            "kl_mean": 2.323e-05,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk30": {
+            "max_abs_logit_diff_median": 0.107,
+            "max_abs_logit_diff_max": 0.1399,
+            "kl_mean": 3.015e-05,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 0.0
+          },
+          "blk31": {
+            "max_abs_logit_diff_median": 0.0,
+            "max_abs_logit_diff_max": 0.0,
+            "kl_mean": 0.0,
+            "top1_changed_frac": 0.0,
+            "exact_match_frac": 1.0
+          },
+          "clean_repeat_max_abs_diff": 0.0,
+          "flush_then_whole_decode_max_abs_diff": 0.0
+        }
+      },
+      "reading": "A blk.31 FFN adapter leaves no trace: nothing follows the last FFN, so it cannot write into KV or recurrent state, and rollback is exact with no flush. Adapters at blk.28..30 leave a trace in the caches that is still present 16 tokens later. At these strengths the trace is small (KL below 1e-3, no top-token change in 16 sequences).",
+      "consequence": "The cache-flush step of the rollback contract is necessary for earlier-layer adapters and unnecessary for last-layer ones."
+    }
+  },
+  "C_shipped_adapters": {
+    "what": "The three composition adapters at mcproof 4552874 (each one rank-8 pair on blk.31.ffn_up), scale 1, measured live on 372 states and compared with the exact float64 prediction W_down (s * (B A x)).",
+    "adapters": {
+      "corpus": {
+        "live_vs_exact_float64_relerr": 0.0692,
+        "live_vs_exact_cosine": 0.9639,
+        "by_state_group": {
+          "fv": {
+            "n": 332,
+            "dh_over_R0": 0.03691,
+            "eta_mean": 0.001504,
+            "eta_max": 0.006625,
+            "contrast_gain_mean": 0.1453,
+            "top1_changed_frac": 0.024
+          },
+          "corpus": {
+            "n": 8,
+            "dh_over_R0": 0.22282,
+            "eta_mean": 0.04728,
+            "eta_max": 0.05952,
+            "contrast_gain_mean": 7.7346,
+            "top1_changed_frac": 0.25
+          },
+          "eido": {
+            "n": 8,
+            "dh_over_R0": 0.07091,
+            "eta_mean": 0.004952,
+            "eta_max": 0.006162,
+            "contrast_gain_mean": -0.0291,
+            "top1_changed_frac": 0.25
+          },
+          "anchor": {
+            "n": 24,
+            "dh_over_R0": 0.00218,
+            "eta_mean": 4.901e-06,
+            "eta_max": 1.043e-05,
+            "contrast_gain_mean": null,
+            "top1_changed_frac": 0.0
+          }
+        }
+      },
+      "weft-eido": {
+        "live_vs_exact_float64_relerr": 0.0619,
+        "live_vs_exact_cosine": 0.9626,
+        "by_state_group": {
+          "fv": {
+            "n": 332,
+            "dh_over_R0": 0.04775,
+            "eta_mean": 0.003664,
+            "eta_max": 0.02801,
+            "contrast_gain_mean": 0.0201,
+            "top1_changed_frac": 0.015
+          },
+          "corpus": {
+            "n": 8,
+            "dh_over_R0": 0.07,
+            "eta_mean": 0.005183,
+            "eta_max": 0.009245,
+            "contrast_gain_mean": -0.0141,
+            "top1_changed_frac": 0.125
+          },
+          "eido": {
+            "n": 8,
+            "dh_over_R0": 0.146,
+            "eta_mean": 0.03341,
+            "eta_max": 0.06165,
+            "contrast_gain_mean": 2.9326,
+            "top1_changed_frac": 0.125
+          },
+          "anchor": {
+            "n": 24,
+            "dh_over_R0": 0.00223,
+            "eta_mean": 5.169e-06,
+            "eta_max": 1.019e-05,
+            "contrast_gain_mean": null,
+            "top1_changed_frac": 0.0
+          }
+        }
+      },
+      "formal-verification": {
+        "live_vs_exact_float64_relerr": 0.0231,
+        "live_vs_exact_cosine": 0.9811,
+        "by_state_group": {
+          "fv": {
+            "n": 332,
+            "dh_over_R0": 0.1271,
+            "eta_mean": 0.02905,
+            "eta_max": 0.1917,
+            "contrast_gain_mean": 5.7258,
+            "top1_changed_frac": 0.172
+          },
+          "corpus": {
+            "n": 8,
+            "dh_over_R0": 0.13137,
+            "eta_mean": 0.01629,
+            "eta_max": 0.03006,
+            "contrast_gain_mean": 0.2889,
+            "top1_changed_frac": 0.125
+          },
+          "eido": {
+            "n": 8,
+            "dh_over_R0": 0.08544,
+            "eta_mean": 0.007898,
+            "eta_max": 0.02181,
+            "contrast_gain_mean": -0.0376,
+            "top1_changed_frac": 0.0
+          },
+          "anchor": {
+            "n": 24,
+            "dh_over_R0": 0.00444,
+            "eta_mean": 2.094e-05,
+            "eta_max": 4.201e-05,
+            "contrast_gain_mean": null,
+            "top1_changed_frac": 0.0
+          }
+        }
+      },
+      "triple": {
+        "live_vs_exact_float64_relerr": 0.0219,
+        "live_vs_exact_cosine": 0.9882,
+        "by_state_group": {
+          "fv": {
+            "n": 332,
+            "dh_over_R0": 0.16363,
+            "eta_mean": 0.03588,
+            "eta_max": 0.2329,
+            "contrast_gain_mean": 5.9291,
+            "top1_changed_frac": 0.208
+          },
+          "corpus": {
+            "n": 8,
+            "dh_over_R0": 0.27865,
+            "eta_mean": 0.07194,
+            "eta_max": 0.09789,
+            "contrast_gain_mean": 8.1105,
+            "top1_changed_frac": 0.375
+          },
+          "eido": {
+            "n": 8,
+            "dh_over_R0": 0.19681,
+            "eta_mean": 0.04369,
+            "eta_max": 0.07418,
+            "contrast_gain_mean": 2.9138,
+            "top1_changed_frac": 0.125
+          },
+          "anchor": {
+            "n": 24,
+            "dh_over_R0": 0.00505,
+            "eta_mean": 2.687e-05,
+            "eta_max": 5.378e-05,
+            "contrast_gain_mean": null,
+            "top1_changed_frac": 0.042
+          }
+        }
+      }
+    },
+    "selectivity_of_formal_verification_adapter": {
+      "dh_over_R0_on_own_training_states": 0.1271,
+      "on_corpus_prompts": 0.1314,
+      "on_design_prompts": 0.0854,
+      "on_y0_anchors": 0.00444,
+      "reading": "It moves unrelated chat prompts about as much as its own training states and leaves the 24 anchors almost untouched. Preservation holds on the listed anchors and does not extend to their neighbours. n is 8 prompts per small pack.",
+      "suggested_check": "Measure preservation on off-domain prompts that were never preservation keys."
+    },
+    "eta_note": "Mean eta on own training states: formal-verification 0.029 (max 0.192), corpus 0.047, design 0.033. These single-layer adapters predate the 0.01 per-layer cap."
+  },
+  "D_design_pack_contrast_pairs": {
+    "statement": "In activation_harvester.py the corpus and design mini-packs take the first two tokens of the good and bad completions as the positive and negative token sets. For the design pack that makes 3 of 8 contrasts exactly zero, and 4 more depend only on the second token.",
+    "pairs": [
+      {
+        "id": "eido-0",
+        "pos_token_ids": [
+          40066,
+          544
+        ],
+        "neg_token_ids": [
+          40066,
+          544
+        ],
+        "contrast": "zero: identical token sets"
+      },
+      {
+        "id": "eido-1",
+        "pos_token_ids": [
+          30487,
+          25026
+        ],
+        "neg_token_ids": [
+          30487,
+          12818
+        ],
+        "contrast": "partial: first token shared"
+      },
+      {
+        "id": "eido-2",
+        "pos_token_ids": [
+          9947,
+          10092
+        ],
+        "neg_token_ids": [
+          9947,
+          6891
+        ],
+        "contrast": "partial: first token shared"
+      },
+      {
+        "id": "eido-3",
+        "pos_token_ids": [
+          989,
+          10264
+        ],
+        "neg_token_ids": [
+          989,
+          10264
+        ],
+        "contrast": "zero: identical token sets"
+      },
+      {
+        "id": "eido-4",
+        "pos_token_ids": [
+          29132,
+          795
+        ],
+        "neg_token_ids": [
+          29132,
+          523
+        ],
+        "contrast": "partial: first token shared"
+      },
+      {
+        "id": "eido-5",
+        "pos_token_ids": [
+          13512,
+          28149
+        ],
+        "neg_token_ids": [
+          13512,
+          28149
+        ],
+        "contrast": "zero: identical token sets"
+      },
+      {
+        "id": "eido-6",
+        "pos_token_ids": [
+          1479,
+          709
+        ],
+        "neg_token_ids": [
+          989,
+          12503
+        ],
+        "contrast": "distinct"
+      },
+      {
+        "id": "eido-7",
+        "pos_token_ids": [
+          27,
+          17251
+        ],
+        "neg_token_ids": [
+          27,
+          19336
+        ],
+        "contrast": "partial: first token shared"
+      }
+    ],
+    "counts": {
+      "zero: identical token sets": 3,
+      "partial: first token shared": 4,
+      "distinct": 1
+    },
+    "consequence": "exact_up_proj_swiglu_residual_f64 returns a zero residual when the contrast is zero. A zero target on a real key acts as a preservation constraint, so three design prompts are held at baseline. For the four partial pairs the target promotes the second token at the position that predicts the first.",
+    "corpus_pack": "all 8 pairs distinct",
+    "possible_link": "In e8_qwen35_4b_live_tc1_receipt.json weft-eido has the smallest solo shift in the single-layer arm (0.002) and the lowest triple retention in both arms. This could contribute. We did not recompile the pack, and in the 4-layer arm its solo shift is not the smallest.",
+    "fix": "Take the first position at which the two completions differ, as the formal-verification path already does, or skip pairs with an empty contrast.",
+    "related_observation": {
+      "statement": "On the formal-verification decision states the base model often already agrees with the target.",
+      "positive_token_is_already_top1_frac": 0.545,
+      "positive_beats_every_listed_negative_frac": 0.886,
+      "median_margin_over_listed_negatives_logits": 8.7,
+      "n": 332,
+      "reading": "The listed negatives are rarely the real competition. Weighting states by how contested they are, and choosing negatives from what the base actually prefers, are options."
+    }
+  },
+  "E_target_residual_preconditioning": {
+    "statement": "The harvester builds the up-projection target as the contrast gradient pulled back by the transpose, du = s * (W_down^T g). That is the steepest-descent direction. Preconditioning with the gate metric M = W_down diag(s^2) W_down^T, du = s * W_down^T (M + lambda I)^-1 g, buys the same contrast gain with a smaller final-residual change.",
+    "derivation": "For a W_up edit at the last layer, dh = W_down (s * du) exactly. The plain choice gives dh = M g, whose energy per unit gain squared exceeds the minimum (dh parallel to g) by kappa = (g'M^2 g)(g'g)/(g'M g)^2.",
+    "kappa_measured_blk31": {
+      "median": 9.11,
+      "n_states": 124,
+      "by_layer_mean_28_to_31": [
+        7.31,
+        9.89,
+        4.83,
+        10.02
+      ],
+      "gate_metric_participation_ratio_median": 125.7,
+      "of_dimension": 2560
+    },
+    "stage_1_per_state_exact": {
+      "what": "single state, unconstrained du, exact float64, equal first-order gain of 1 logit; lambda in units of the mean eigenvalue of M; 'inf' is the plain target, '0' the minimum-norm one; KL over a top-32 support",
+      "by_lambda": {
+        "inf": {
+          "eta_relative_to_plain": 1.0,
+          "kl_top32_relative_to_plain": 1.0,
+          "dlogp_positive": 0.3101,
+          "up_residual_energy_relative_to_plain": 1.0
+        },
+        "10": {
+          "eta_relative_to_plain": 0.333,
+          "kl_top32_relative_to_plain": 1.065,
+          "dlogp_positive": 0.3409,
+          "up_residual_energy_relative_to_plain": 1.17
+        },
+        "1": {
+          "eta_relative_to_plain": 0.209,
+          "kl_top32_relative_to_plain": 0.909,
+          "dlogp_positive": 0.3437,
+          "up_residual_energy_relative_to_plain": 1.75
+        },
+        "0.1": {
+          "eta_relative_to_plain": 0.142,
+          "kl_top32_relative_to_plain": 0.514,
+          "dlogp_positive": 0.3089,
+          "up_residual_energy_relative_to_plain": 4.91
+        },
+        "0.01": {
+          "eta_relative_to_plain": 0.122,
+          "kl_top32_relative_to_plain": 0.426,
+          "dlogp_positive": 0.2778,
+          "up_residual_energy_relative_to_plain": 16.08
+        },
+        "0": {
+          "eta_relative_to_plain": 0.12,
+          "kl_top32_relative_to_plain": 0.424,
+          "dlogp_positive": 0.2715,
+          "up_residual_energy_relative_to_plain": 28.25
+        }
+      }
+    },
+    "stage_2_compiled_rank8": {
+      "what": "the team's BetaEdit projector with the P2-B recipe, 220 training states of 64 prompts, evaluated on 112 states of 32 held-out prompt ids in exact float64, every arm rescaled to the same mean gain; KL over a top-32 support",
+      "by_arm": {
+        "plain": {
+          "lambda_rel": null,
+          "scale_to_equal_gain": 1.0,
+          "fro_norm_at_that_scale": 3.174,
+          "k0_noise_leak_at_that_scale": 0.2666,
+          "truncation_rel_error": 0.436,
+          "held_out_gain_mean": 5.1849,
+          "held_out_gain_median": 1.2153,
+          "held_out_eta_mean": 0.026975,
+          "held_out_eta_median": 0.003825,
+          "held_out_dlogp_positive_mean": 0.2759,
+          "held_out_kl_top32_mean": 1.539,
+          "anchors_kl_top32_mean": 2.474e-05,
+          "anchors_top1_changed_frac": 0.0
+        },
+        "lam10": {
+          "lambda_rel": 10.0,
+          "scale_to_equal_gain": 0.718,
+          "fro_norm_at_that_scale": 3.463,
+          "k0_noise_leak_at_that_scale": 0.2865,
+          "truncation_rel_error": 0.471,
+          "held_out_gain_mean": 5.1492,
+          "held_out_gain_median": 3.23,
+          "held_out_eta_mean": 0.016428,
+          "held_out_eta_median": 0.004291,
+          "held_out_dlogp_positive_mean": 0.3495,
+          "held_out_kl_top32_mean": 1.5028,
+          "anchors_kl_top32_mean": 2.996e-05,
+          "anchors_top1_changed_frac": 0.0
+        },
+        "lam1": {
+          "lambda_rel": 1.0,
+          "scale_to_equal_gain": 0.67,
+          "fro_norm_at_that_scale": 4.664,
+          "k0_noise_leak_at_that_scale": 0.3847,
+          "truncation_rel_error": 0.553,
+          "held_out_gain_mean": 5.1604,
+          "held_out_gain_median": 2.1035,
+          "held_out_eta_mean": 0.012936,
+          "held_out_eta_median": 0.002204,
+          "held_out_dlogp_positive_mean": 0.4495,
+          "held_out_kl_top32_mean": 1.4556,
+          "anchors_kl_top32_mean": 3.633e-05,
+          "anchors_top1_changed_frac": 0.0
+        },
+        "lam0.1": {
+          "lambda_rel": 0.1,
+          "scale_to_equal_gain": 0.66,
+          "fro_norm_at_that_scale": 9.253,
+          "k0_noise_leak_at_that_scale": 0.7706,
+          "truncation_rel_error": 0.654,
+          "held_out_gain_mean": 5.1867,
+          "held_out_gain_median": 1.5665,
+          "held_out_eta_mean": 0.011518,
+          "held_out_eta_median": 0.001681,
+          "held_out_dlogp_positive_mean": 0.4332,
+          "held_out_kl_top32_mean": 1.6347,
+          "anchors_kl_top32_mean": 2.94e-05,
+          "anchors_top1_changed_frac": 0.0
+        },
+        "minnorm": {
+          "lambda_rel": 0.0,
+          "scale_to_equal_gain": 0.645,
+          "fro_norm_at_that_scale": 25.068,
+          "k0_noise_leak_at_that_scale": 2.1112,
+          "truncation_rel_error": 0.704,
+          "held_out_gain_mean": 5.152,
+          "held_out_gain_median": 1.075,
+          "held_out_eta_mean": 0.013599,
+          "held_out_eta_median": 0.001597,
+          "held_out_dlogp_positive_mean": 0.0954,
+          "held_out_kl_top32_mean": 1.5441,
+          "anchors_kl_top32_mean": 2.79e-05,
+          "anchors_top1_changed_frac": 0.042
+        }
+      }
+    },
+    "stage_3_live_gpu": {
+      "what": "the same compiled factors written as GGUF LoRAs and measured on the RTX 3080 at equal target gain; KL over the full vocabulary",
+      "by_arm": {
+        "plain": {
+          "scale": 0.5,
+          "realised_gain": 2.658,
+          "eta": 0.006757,
+          "eta_per_gain_sq": 0.000956,
+          "eta_per_gain_sq_median_over_states": 0.000861,
+          "dlogp_positive": 0.2879,
+          "kl_on_domain_full_vocab": 0.6118,
+          "corpus_prompts_dh_over_R0": 0.0555,
+          "corpus_prompts_kl": 0.1384,
+          "design_prompts_kl": 0.0059,
+          "anchors_dh_over_R0": 0.0014,
+          "anchors_top1_changed_frac": 0.0,
+          "native_scale_gain_live": 5.1828,
+          "native_scale_gain_float64": 5.1849,
+          "native_scale_eta_live": 0.026994,
+          "native_scale_eta_float64": 0.026975
+        },
+        "lam10": {
+          "scale": 0.3716,
+          "realised_gain": 2.7269,
+          "eta": 0.004411,
+          "eta_per_gain_sq": 0.000593,
+          "eta_per_gain_sq_median_over_states": 0.000533,
+          "dlogp_positive": 0.3016,
+          "kl_on_domain_full_vocab": 0.6696,
+          "corpus_prompts_dh_over_R0": 0.0417,
+          "corpus_prompts_kl": 0.204,
+          "design_prompts_kl": 0.0053,
+          "anchors_dh_over_R0": 0.00128,
+          "anchors_top1_changed_frac": 0.0,
+          "native_scale_gain_live": 6.9739,
+          "native_scale_gain_float64": 6.9757,
+          "native_scale_eta_live": 0.031857,
+          "native_scale_eta_float64": 0.031825
+        },
+        "lam1": {
+          "scale": 0.3465,
+          "realised_gain": 2.7263,
+          "eta": 0.003478,
+          "eta_per_gain_sq": 0.000468,
+          "eta_per_gain_sq_median_over_states": 0.000406,
+          "dlogp_positive": 0.3751,
+          "kl_on_domain_full_vocab": 0.6284,
+          "corpus_prompts_dh_over_R0": 0.0353,
+          "corpus_prompts_kl": 0.2151,
+          "design_prompts_kl": 0.003,
+          "anchors_dh_over_R0": 0.00128,
+          "anchors_top1_changed_frac": 0.0,
+          "native_scale_gain_live": 7.4791,
+          "native_scale_gain_float64": 7.4833,
+          "native_scale_eta_live": 0.028857,
+          "native_scale_eta_float64": 0.028831
+        },
+        "lam0.1": {
+          "scale": 0.3393,
+          "realised_gain": 2.7198,
+          "eta": 0.003064,
+          "eta_per_gain_sq": 0.000414,
+          "eta_per_gain_sq_median_over_states": 0.000548,
+          "dlogp_positive": 0.3528,
+          "kl_on_domain_full_vocab": 0.7362,
+          "corpus_prompts_dh_over_R0": 0.039,
+          "corpus_prompts_kl": 0.2955,
+          "design_prompts_kl": 0.0052,
+          "anchors_dh_over_R0": 0.00153,
+          "anchors_top1_changed_frac": 0.0,
+          "native_scale_gain_live": 7.6379,
+          "native_scale_gain_float64": 7.638,
+          "native_scale_eta_live": 0.026488,
+          "native_scale_eta_float64": 0.026456
+        },
+        "minnorm": {
+          "scale": 0.3368,
+          "realised_gain": 2.7556,
+          "eta": 0.003731,
+          "eta_per_gain_sq": 0.000491,
+          "eta_per_gain_sq_median_over_states": 0.001216,
+          "dlogp_positive": 0.1724,
+          "kl_on_domain_full_vocab": 0.7099,
+          "corpus_prompts_dh_over_R0": 0.0561,
+          "corpus_prompts_kl": 0.3142,
+          "design_prompts_kl": 0.0043,
+          "anchors_dh_over_R0": 0.00195,
+          "anchors_top1_changed_frac": 0.0,
+          "native_scale_gain_live": 7.6936,
+          "native_scale_gain_float64": 7.696,
+          "native_scale_eta_live": 0.032764,
+          "native_scale_eta_float64": 0.032737
+        }
+      }
+    },
+    "what_improves_at_lambda_1": [
+      "Radial shrinkage per unit gain squared: 0.00096 to 0.00047 live (0.49x), and the per-state median 0.00086 to 0.00041.",
+      "Log-probability of the positive token at equal contrast gain: +0.288 to +0.375 live.",
+      "Residual movement on unrelated corpus prompts: 0.0555 to 0.0353.",
+      "Live gain and eta match the float64 prediction to three or four digits at native scale."
+    ],
+    "what_gets_worse_or_does_not_improve": [
+      "KL on unrelated corpus prompts RISES: 0.138 to 0.215 at lambda 1 and 0.295 at lambda 0.1, although the residual moves less. A smaller residual change is not a smaller change in distribution.",
+      "On-domain KL at equal gain does not improve: 0.612 plain, 0.628 at lambda 1, 0.736 at lambda 0.1, 0.710 minimum-norm.",
+      "Weight norm and K0 leakage at equal gain rise by about half at lambda 1 (3.174 to 4.664; 0.2666 to 0.3847), and the target is less low-rank (truncation error 0.436 to 0.553).",
+      "The unregularised minimum-norm target is worse once compiled: positive-token log-probability +0.172 live against +0.288 plain, at 8 times the weight norm.",
+      "lambda 10 improves the mean but not the per-state median of eta after compilation (0.003825 plain, 0.004291 at lambda 10): equal mean gain can hide redistribution across states (median gain 1.2153 plain, 2.1035 at lambda 1)."
+    ],
+    "sizing": "This is the gradient versus Gauss-Newton distinction applied to an edit that sits upstream of a gate and a down-projection. The principle is standard. What is offered is the identification in this pipeline and a three-stage measurement, with a mixed result: less shrinkage and more of the objective, more distribution change off-domain.",
+    "limits": [
+      "blk.31 only, formal-verification states only, one split, safety directions not registered.",
+      "'Held-out' means held-out prompt ids (32 of 96, 0 overlap) inside the same four template families; 98% of held-out states reuse a (positive token, negative set) pair seen in training. The anchors evaluated are the compile-time preservation keys.",
+      "Stages 1 and 2 measure KL over a top-32 support; stage 3 over the full vocabulary."
+    ],
+    "reproducibility_note": {
+      "statement": "Two scripts that call the same compiler with the same inputs wrote byte-identical GGUF files. This shows the compile is reproducible on this machine and nothing more.",
+      "sha256": "5bbc37371cd5791ac5ba9acdd0bd8b90abf967142726c019dd7284add9dd87e4",
+      "equal": true
+    }
+  },
+  "operational_note": {
+    "statement": "Loading llama.dll from another process fell back to CPU without any error, because ggml loads its CUDA backend with a plain native LoadLibrary that could not resolve cuBLAS. The first harvest ran on CPU with 0 MiB of VRAM in use until this was noticed; it was discarded and repeated.",
+    "guard": "The harness now asserts a registered GPU device, 'offloaded N/N layers' in the load log and a drop of over 1 GiB in free VRAM. Any tool that embeds llama.cpp and must run on the GPU should assert the same."
+  },
+  "gpu_runs": {
+    "probe": {
+      "free_mib_start": 8018,
+      "free_mib_end": 8018,
+      "clean_hardware_run": true,
+      "duration_ms": 884047.0
+    },
+    "thermal": {
+      "max_sampled_c": 86,
+      "self_imposed_pauses_at_85c": 20
+    },
+    "note": "Launched through mlos gpu-lease and mlos stamp-run; figures are the stamper's start and end snapshots."
+  },
+  "review": "Recomputed from raw files by an independent reviewer before sending; findings were raised and addressed, including one claim that was wrong (off-domain KL). The server-level test and the rollback probe were added after that review and checked by a second reviewer.",
+  "artifact_sha256": {
+    "probe_analysis_v1.json": "9d502146e06576e67278055ddd203d2c26b7f62036d9453732b47b19063a658e",
+    "probe_v1.json": "e9a155cfb500236f1b7b81a69c9716a335632a22c5cf9a01556de02f4516e5ae",
+    "actq_check_v1.json": "4b964ebb53868c39c42337db0360b5a82368e6c451a9ecdc12ef39ea736b50dc",
+    "m1_analysis_v1.json": "e255846ae45b5d34fa203fce195d602172a5d0c4a3d6e6dfdcf6a10a5405ac5e",
+    "target_residual_exp_v1.json": "71cb8c8a96b63f413e0303b328676ce36f94cb6c72e7ce41594b3edd19ed1df9",
+    "compile_exp_v1.json": "f8b61b06576624cbed83a5103f7eafb2016258c01dffad1e216036ebd3dbb18a",
+    "alloc_live_v2.json": "36d6ea3d359b391ff289c3d0d6923affea9a0c05015a73842ea8372b6bea1b94",
+    "server_logit_check_v1.json": "ba364a01c125d8e3a4e8f079bf31f1988de74952aa6b652947b8893d8761e355",
+    "rollback_probe_v1.json": "fb7cc2b31223bd37ff2695150ba90565587fd2deaead5682c641cc1476e71656",
+    "alloc_passthrough_vs_live.json": "88237083157d1c0c9d35271b3dfd1847f59d26b23137e203fc0f0112e8fe1ebc",
+    "adapter:c31_plain": "5bbc37371cd5791ac5ba9acdd0bd8b90abf967142726c019dd7284add9dd87e4",
+    "adapter:c31_lam10": "600fc7f6d1357f61b4b52c1d51f07e6ba002dcfb1607c8ae7ca0f5b78fa53fab",
+    "adapter:c31_lam1": "e8e729b7a320262e50fdf8e2e5a2716bb2f6ff7bc6d50f5d09b68a4dcc5b4613",
+    "adapter:c31_lam0.1": "7de4a6b82f7fdf91fc833dff6bed4a9836191da75a84515417a69dfa3f95662e",
+    "adapter:c31_minnorm": "85ffefdcab47daf0c3ef49b7c0923200f99e58474c14df3a3a8a1931e9ea3316"
+  },
+  "scrubbed": "user paths and tailnet/LAN IPs replaced with placeholders; no keys or tokens. Raw logs are not shipped."
+}

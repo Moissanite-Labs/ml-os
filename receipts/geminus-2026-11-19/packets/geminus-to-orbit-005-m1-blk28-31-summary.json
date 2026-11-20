@@ -1,0 +1,814 @@
+{
+  "schema": "geminus-to-orbit-m1-summary/v2",
+  "packet_id": "geminus-to-orbit-005",
+  "in_reply_to": "orbit-to-geminus-005 (ranked action 1: harvest M1 inputs on the RTX 3080)",
+  "title": "M1 inputs for Qwen3.5-4B blk.28..31 harvested on the RTX 3080, and a live test showing the per-layer pass-through model does not hold for blk.28..30",
+  "target_model": "Qwen3.5-4B",
+  "target_layers": [
+    28,
+    29,
+    30,
+    31
+  ],
+  "r_norms": [
+    41.4068,
+    44.5046,
+    49.6783,
+    59.0168
+  ],
+  "gammas": [
+    1.1072,
+    1.2767,
+    1.6478,
+    3.1828
+  ],
+  "rhos": [
+    8.4151,
+    7.3811,
+    2.5609,
+    1.1584
+  ],
+  "key_semantics": {
+    "what_these_are": "Harvested pass-through quantities of the base model on the calibration states, under the definitions below. We could not confirm that these are your definitions (see comparison_with_e8_spectra_summary).",
+    "r_norms": "mean L2 norm of the residual stream after layer l's FFN (llama.cpp tensor l_out-l), over all 372 decision states.",
+    "gammas": "mean over 345 contrast states of sqrt(g'M_l^2 g / g'M_l g): norm of the post-W_down perturbation per unit norm of the pulled-back up-residual a = s*(W_down^T g). M_l = W_down^l diag(s_l^2) W_down^l^T, s = SiLU gate, g = tangent-projected contrast gradient at the final norm.",
+    "rhos": "mean over the same states of 1/(g^'M_l g^) with g^ = g/|g|: inverse gate-metric energy along the contrast gradient.",
+    "kappa": "gamma^2 * rho per state equals g^'M^2 g^ / (g^'M g^)^2 >= 1: perturbation energy per unit gain squared relative to the minimum (dh parallel to g).",
+    "product_law_shares_with_these_keys": [
+      0.1692,
+      0.1675,
+      0.3612,
+      0.3021
+    ],
+    "warning": "Do not allocate from these shares. The model they feed assumes a perturbation after layer l reaches the final residual unchanged. live_allocation_test shows that fails for blk.28..30.",
+    "ci95_gamma_mean": [
+      [
+        1.0612,
+        1.1539
+      ],
+      [
+        1.231,
+        1.327
+      ],
+      [
+        1.592,
+        1.7051
+      ],
+      [
+        3.0397,
+        3.3383
+      ]
+    ],
+    "ci95_rho_mean": [
+      [
+        7.9061,
+        8.937
+      ],
+      [
+        6.9883,
+        7.7664
+      ],
+      [
+        2.3242,
+        2.802
+      ],
+      [
+        1.0932,
+        1.2213
+      ]
+    ],
+    "ci_note": "bootstrap over states, not over prompts; states from one prompt are not independent, so these intervals are too narrow",
+    "kappa_mean_28_to_31": [
+      7.307,
+      9.894,
+      4.83,
+      10.017
+    ]
+  },
+  "read_first": [
+    "1. For a real rank-8 W_up LoRA at blk.28, 29, 30 the live contrast gain is 32%, 41%, 26% of the first-order pass-through prediction on the same states. At blk.31 it is 97% of the first-order prediction and 99.96% of the exact float64 value, so the blk.31 gap is linearisation and pass-through is exact there.",
+    "2. Radial shrinkage (eta per unit gain squared): a uniform 1/L split measured 4.5 times worse than blk.31 alone at the operating point tested, where blk.28..30 run at scales 1.0 to 1.9 and are leaving the quadratic regime. Adding the four scale-1 costs incoherently gives 3.0 times. Either way it is worse, not better.",
+    "3. The best of the nine allocations tested put 80% on blk.31 and was 21% better than blk.31 alone. That is one hand-picked split at one gain level on 112 states of 32 prompts, with no interval.",
+    "4. Any share on blk.28..30 increased anchor movement by 7.8 to 18.4 times in the five mixes, and that understates it. The blk.31 baseline is at the runtime noise floor (live 0.0014, float64 0.00053); against the float64 baseline the range is 21 to 49 times.",
+    "5. Radial shrinkage is not the only harm. On-domain KL per unit gain squared is at most half of blk.31's for 3 of the 5 mixes (uniform 0.48, passthrough_diag_law 0.39, passthrough_gram_opt 0.41, mac_product_law 0.74, late_heavy 0.88), and 4 of the 5 give the positive token more log-probability. KL per gain squared is not scale-invariant even for blk.31 alone (0.0866 at G, 0.0575 at 2G), so treat these ratios as indicative.",
+    "6. Your E8 r_norms match our post-norm FFN key norms within 2.2% at all four layers and do not match residual radii. This is a match between numbers; what your script computes is our inference.",
+    "7. Method limits that could change the picture are in limits. The two most important: the per-layer targets here pull the final-norm contrast direction back through each layer's own W_down, as the E8 synthetic stack does; and 'held-out' is weaker than it sounds."
+  ],
+  "live_allocation_test": {
+    "method": "Four single-layer rank-8 adapters (blk.28..31), compiled with the mcproof P2-B recipe from 220 training states of 64 prompts, were loaded together; the per-adapter scale vector is the allocation. Scales were t_l = alpha_l * G / g_live_l with G = half the blk.31 scale-1 gain.",
+    "evaluation_states": "112 decision states of 32 held-out prompt ids, plus 8 corpus prompts, 8 design prompts and the 24 y=0 anchors.",
+    "held_out_caveat": "'Held-out' means held-out prompt ids (32 of 96, every third id, 0 overlap) inside the same four template families. 98% of held-out states reuse a (positive token, negative set) pair seen in training, and the nearest training prompt has median string similarity 0.71 (difflib ratio). The 24 anchors evaluated are the anchors used as preservation keys at compile time.",
+    "target_gain_G": 2.5914,
+    "single_layer_adapters_at_scale_1": {
+      "28": {
+        "first_order_passthrough_gain": 1.0814,
+        "live_gain": 0.344,
+        "live_over_first_order": 0.318,
+        "eta": 0.002747,
+        "eta_per_gain_sq": 0.023219
+      },
+      "29": {
+        "first_order_passthrough_gain": 1.2323,
+        "live_gain": 0.5051,
+        "live_over_first_order": 0.41,
+        "eta": 0.003822,
+        "eta_per_gain_sq": 0.014983
+      },
+      "30": {
+        "first_order_passthrough_gain": 2.4603,
+        "live_gain": 0.6443,
+        "live_over_first_order": 0.262,
+        "eta": 0.003802,
+        "eta_per_gain_sq": 0.009158
+      },
+      "31": {
+        "first_order_passthrough_gain": 5.3476,
+        "live_gain": 5.1828,
+        "live_over_first_order": 0.969,
+        "eta": 0.026994,
+        "eta_per_gain_sq": 0.001005
+      }
+    },
+    "blk31_exact_float64_gain": 5.1849,
+    "blk31_live_over_exact_float64": 0.99959,
+    "allocations": {
+      "only28": {
+        "alpha_blk28_31": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "adapter_scales": {
+          "plain_blk28": 7.5339,
+          "plain_blk29": 0.0,
+          "plain_blk30": 0.0,
+          "plain_blk31": 0.0
+        },
+        "realised_gain": 1.8407,
+        "eta": 0.134562,
+        "eta_per_gain_sq": 0.039715,
+        "eta_per_gain_sq_median_over_states": 0.021152,
+        "kl_on_domain": 0.7602,
+        "kl_on_domain_per_gain_sq": 0.2244,
+        "dlogp_positive_token": 0.2211,
+        "corpus_prompts_dh_over_R0": 0.284,
+        "corpus_prompts_kl": 0.6361,
+        "anchors_dh_over_R0": 0.07371,
+        "anchors_kl": 0.0037684,
+        "anchors_top1_changed_frac": 0.042,
+        "eta_per_gain_sq_relative_to_only31": 41.528,
+        "anchors_dh_relative_to_only31_live": 52.82,
+        "anchors_dh_relative_to_only31_float64": 140.1,
+        "kl_per_gain_sq_relative_to_only31": 2.591
+      },
+      "only29": {
+        "alpha_blk28_31": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "adapter_scales": {
+          "plain_blk28": 0.0,
+          "plain_blk29": 5.1307,
+          "plain_blk30": 0.0,
+          "plain_blk31": 0.0
+        },
+        "realised_gain": 2.3835,
+        "eta": 0.10369,
+        "eta_per_gain_sq": 0.018252,
+        "eta_per_gain_sq_median_over_states": 0.016499,
+        "kl_on_domain": 0.3831,
+        "kl_on_domain_per_gain_sq": 0.0674,
+        "dlogp_positive_token": 0.2073,
+        "corpus_prompts_dh_over_R0": 0.1813,
+        "corpus_prompts_kl": 0.0601,
+        "anchors_dh_over_R0": 0.05925,
+        "anchors_kl": 0.0020518,
+        "anchors_top1_changed_frac": 0.042,
+        "eta_per_gain_sq_relative_to_only31": 19.085,
+        "anchors_dh_relative_to_only31_live": 42.46,
+        "anchors_dh_relative_to_only31_float64": 112.6,
+        "kl_per_gain_sq_relative_to_only31": 0.779
+      },
+      "only30": {
+        "alpha_blk28_31": [
+          0,
+          0,
+          1,
+          0
+        ],
+        "adapter_scales": {
+          "plain_blk28": 0.0,
+          "plain_blk29": 0.0,
+          "plain_blk30": 4.0217,
+          "plain_blk31": 0.0
+        },
+        "realised_gain": 0.8379,
+        "eta": 0.06576,
+        "eta_per_gain_sq": 0.093667,
+        "eta_per_gain_sq_median_over_states": 0.017386,
+        "kl_on_domain": 0.375,
+        "kl_on_domain_per_gain_sq": 0.5342,
+        "dlogp_positive_token": -0.7421,
+        "corpus_prompts_dh_over_R0": 0.1093,
+        "corpus_prompts_kl": 0.049,
+        "anchors_dh_over_R0": 0.02398,
+        "anchors_kl": 0.0003006,
+        "anchors_top1_changed_frac": 0.042,
+        "eta_per_gain_sq_relative_to_only31": 97.942,
+        "anchors_dh_relative_to_only31_live": 17.19,
+        "anchors_dh_relative_to_only31_float64": 45.6,
+        "kl_per_gain_sq_relative_to_only31": 6.169
+      },
+      "only31": {
+        "alpha_blk28_31": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "adapter_scales": {
+          "plain_blk28": 0.0,
+          "plain_blk29": 0.0,
+          "plain_blk30": 0.0,
+          "plain_blk31": 0.5
+        },
+        "realised_gain": 2.658,
+        "eta": 0.006757,
+        "eta_per_gain_sq": 0.000956,
+        "eta_per_gain_sq_median_over_states": 0.000861,
+        "kl_on_domain": 0.6118,
+        "kl_on_domain_per_gain_sq": 0.0866,
+        "dlogp_positive_token": 0.2879,
+        "corpus_prompts_dh_over_R0": 0.0555,
+        "corpus_prompts_kl": 0.1384,
+        "anchors_dh_over_R0": 0.0014,
+        "anchors_kl": 2.14e-05,
+        "anchors_top1_changed_frac": 0.0,
+        "eta_per_gain_sq_relative_to_only31": 1.0,
+        "anchors_dh_relative_to_only31_live": 1.0,
+        "anchors_dh_relative_to_only31_float64": 2.7,
+        "kl_per_gain_sq_relative_to_only31": 1.0
+      },
+      "uniform": {
+        "alpha_blk28_31": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "adapter_scales": {
+          "plain_blk28": 1.8835,
+          "plain_blk29": 1.2827,
+          "plain_blk30": 1.0054,
+          "plain_blk31": 0.125
+        },
+        "realised_gain": 2.2454,
+        "eta": 0.021927,
+        "eta_per_gain_sq": 0.004349,
+        "eta_per_gain_sq_median_over_states": 0.003097,
+        "kl_on_domain": 0.2117,
+        "kl_on_domain_per_gain_sq": 0.042,
+        "dlogp_positive_token": 0.3922,
+        "corpus_prompts_dh_over_R0": 0.0778,
+        "corpus_prompts_kl": 0.0863,
+        "anchors_dh_over_R0": 0.0257,
+        "anchors_kl": 0.0005651,
+        "anchors_top1_changed_frac": 0.042,
+        "eta_per_gain_sq_relative_to_only31": 4.547,
+        "anchors_dh_relative_to_only31_live": 18.42,
+        "anchors_dh_relative_to_only31_float64": 48.9,
+        "kl_per_gain_sq_relative_to_only31": 0.485
+      },
+      "passthrough_diag_law": {
+        "alpha_blk28_31": [
+          0.245,
+          0.184,
+          0.37,
+          0.202
+        ],
+        "adapter_scales": {
+          "plain_blk28": 1.8458,
+          "plain_blk29": 0.9441,
+          "plain_blk30": 1.488,
+          "plain_blk31": 0.101
+        },
+        "realised_gain": 1.9753,
+        "eta": 0.023247,
+        "eta_per_gain_sq": 0.005958,
+        "eta_per_gain_sq_median_over_states": 0.004617,
+        "kl_on_domain": 0.1328,
+        "kl_on_domain_per_gain_sq": 0.034,
+        "dlogp_positive_token": 0.2959,
+        "corpus_prompts_dh_over_R0": 0.0777,
+        "corpus_prompts_kl": 0.0906,
+        "anchors_dh_over_R0": 0.02462,
+        "anchors_kl": 0.0005792,
+        "anchors_top1_changed_frac": 0.042,
+        "eta_per_gain_sq_relative_to_only31": 6.23,
+        "anchors_dh_relative_to_only31_live": 17.64,
+        "anchors_dh_relative_to_only31_float64": 46.8,
+        "kl_per_gain_sq_relative_to_only31": 0.393
+      },
+      "passthrough_gram_opt": {
+        "alpha_blk28_31": [
+          0.27,
+          0.13,
+          0.438,
+          0.162
+        ],
+        "adapter_scales": {
+          "plain_blk28": 2.0342,
+          "plain_blk29": 0.667,
+          "plain_blk30": 1.7615,
+          "plain_blk31": 0.081
+        },
+        "realised_gain": 1.781,
+        "eta": 0.026756,
+        "eta_per_gain_sq": 0.008436,
+        "eta_per_gain_sq_median_over_states": 0.005185,
+        "kl_on_domain": 0.1119,
+        "kl_on_domain_per_gain_sq": 0.0353,
+        "dlogp_positive_token": 0.1912,
+        "corpus_prompts_dh_over_R0": 0.0824,
+        "corpus_prompts_kl": 0.0846,
+        "anchors_dh_over_R0": 0.02544,
+        "anchors_kl": 0.0004574,
+        "anchors_top1_changed_frac": 0.042,
+        "eta_per_gain_sq_relative_to_only31": 8.821,
+        "anchors_dh_relative_to_only31_live": 18.23,
+        "anchors_dh_relative_to_only31_float64": 48.4,
+        "kl_per_gain_sq_relative_to_only31": 0.407
+      },
+      "mac_product_law": {
+        "alpha_blk28_31": [
+          0.125,
+          0.107,
+          0.225,
+          0.543
+        ],
+        "adapter_scales": {
+          "plain_blk28": 0.9417,
+          "plain_blk29": 0.549,
+          "plain_blk30": 0.9049,
+          "plain_blk31": 0.2715
+        },
+        "realised_gain": 2.601,
+        "eta": 0.009108,
+        "eta_per_gain_sq": 0.001346,
+        "eta_per_gain_sq_median_over_states": 0.001305,
+        "kl_on_domain": 0.4348,
+        "kl_on_domain_per_gain_sq": 0.0643,
+        "dlogp_positive_token": 0.4359,
+        "corpus_prompts_dh_over_R0": 0.0558,
+        "corpus_prompts_kl": 0.1636,
+        "anchors_dh_over_R0": 0.01611,
+        "anchors_kl": 0.0002164,
+        "anchors_top1_changed_frac": 0.0,
+        "eta_per_gain_sq_relative_to_only31": 1.408,
+        "anchors_dh_relative_to_only31_live": 11.55,
+        "anchors_dh_relative_to_only31_float64": 30.6,
+        "kl_per_gain_sq_relative_to_only31": 0.742
+      },
+      "late_heavy": {
+        "alpha_blk28_31": [
+          0.05,
+          0.05,
+          0.1,
+          0.8
+        ],
+        "adapter_scales": {
+          "plain_blk28": 0.3767,
+          "plain_blk29": 0.2565,
+          "plain_blk30": 0.4022,
+          "plain_blk31": 0.4
+        },
+        "realised_gain": 2.7511,
+        "eta": 0.005691,
+        "eta_per_gain_sq": 0.000752,
+        "eta_per_gain_sq_median_over_states": 0.000673,
+        "kl_on_domain": 0.5789,
+        "kl_on_domain_per_gain_sq": 0.0765,
+        "dlogp_positive_token": 0.3959,
+        "corpus_prompts_dh_over_R0": 0.0514,
+        "corpus_prompts_kl": 0.1616,
+        "anchors_dh_over_R0": 0.01084,
+        "anchors_kl": 0.0001319,
+        "anchors_top1_changed_frac": 0.042,
+        "eta_per_gain_sq_relative_to_only31": 0.786,
+        "anchors_dh_relative_to_only31_live": 7.77,
+        "anchors_dh_relative_to_only31_float64": 20.6,
+        "kl_per_gain_sq_relative_to_only31": 0.883
+      }
+    },
+    "operating_point_caveats": {
+      "single_layer_eta_at_G_blk28_29_30": [
+        0.1346,
+        0.1037,
+        0.0658
+      ],
+      "weft_tangent_default_per_layer_eta_cap": 0.01,
+      "note": "At gain G the single earlier layers reach eta 7 to 13 times 0.01, the default max_per_layer_radial_eta in weft tangent.py (the E8 synthetic arms set 0.20 and 0.05). Those three rows are probably outside the regime you would run. blk.30 at 4x scale reaches a third of the target gain.",
+      "uniform_from_scale1_costs_added_incoherently_relative_to_only31": 3.01
+    },
+    "linearity_check": {
+      "only31_at_2G_realised_gain": 5.1828,
+      "only31_at_2G_eta_per_gain_sq": 0.001005
+    },
+    "reproducibility": {
+      "second_full_run_max_abs_diff_in_realised_gain": 0.0,
+      "base_pass_repeat_max_abs_diff_final_residual": 0.0
+    },
+    "metrics": {
+      "eta": "||dh_perp||^2 / R0^2 at the final residual, from l_out-31 with and without the adapters",
+      "realised_gain": "mean change of (mean logit of positive tokens - mean logit of negative tokens)",
+      "kl": "KL(base || edited) over the full 248320-token vocabulary",
+      "dh_over_R0": "norm of the final-residual change over the base radius"
+    }
+  },
+  "live_costs_constructed": {
+    "note": "TRUE BY CONSTRUCTION, offered as a convenience only. These are 1/cost of four specific adapters at scale 1, measured on the same states used to evaluate. They are not properties of the base model, and they change with scale (blk.30: eta per gain squared 0.0092 at scale 1, 0.0937 at scale 4.0).",
+    "eta_per_gain_sq_at_scale_1": [
+      0.023219,
+      0.014983,
+      0.009158,
+      0.001005
+    ],
+    "inverse_cost_shares": [
+      0.0355,
+      0.055,
+      0.0899,
+      0.8196
+    ]
+  },
+  "propagation_probe": {
+    "method": "A fixed vector of norm 0.10 R0 (and 0.03 R0) was added to the residual stream after layer l at every position (llama_set_adapter_cvec), both signs; the odd part of the final-residual response is reported. 55 states.",
+    "by_layer": {
+      "28": {
+        "amplification_mean": 1.718,
+        "cosine_with_injected_mean": 0.483,
+        "tangent_energy_ratio_mean": 2.961,
+        "gain_retained_mean_eps0.10": 0.781,
+        "gain_retained_median_eps0.10": 0.715,
+        "gain_retained_median_eps0.03": 0.644
+      },
+      "29": {
+        "amplification_mean": 1.415,
+        "cosine_with_injected_mean": 0.57,
+        "tangent_energy_ratio_mean": 1.994,
+        "gain_retained_mean_eps0.10": 0.644,
+        "gain_retained_median_eps0.10": 0.6,
+        "gain_retained_median_eps0.03": 0.518
+      },
+      "30": {
+        "amplification_mean": 1.354,
+        "cosine_with_injected_mean": 0.54,
+        "tangent_energy_ratio_mean": 1.867,
+        "gain_retained_mean_eps0.10": 0.612,
+        "gain_retained_median_eps0.10": 0.618,
+        "gain_retained_median_eps0.03": 0.636
+      },
+      "31": {
+        "amplification_mean": 1.0,
+        "cosine_with_injected_mean": 1.0,
+        "tangent_energy_ratio_mean": 1.0,
+        "gain_retained_mean_eps0.10": 1.0,
+        "gain_retained_median_eps0.10": 1.0,
+        "gain_retained_median_eps0.03": 1.0
+      }
+    },
+    "control": "At blk.31 every measure is 1.000. That is true by construction (the vector is added just before readout) and checks only sign, scale and layer index.",
+    "reading": "The probe and the adapters agree in direction and disagree in size. Across mean and median at both amplitudes the probe retains 52% to 78% of pass-through gain at blk.28..30; real adapters retain 26% to 41%. They inject different things: one constant vector at all positions against a key-dependent edit."
+  },
+  "residual_radii_measured": {
+    "after_ffn_l_out_layers_27_to_31": [
+      35.3911,
+      41.4068,
+      44.5046,
+      49.6783,
+      59.0168
+    ],
+    "before_ffn_attn_residual_layers_28_to_31": [
+      39.1975,
+      42.9545,
+      48.2083,
+      54.0659
+    ],
+    "noise_sequences_last_position_l_out_27_to_31": [
+      35.5687,
+      43.4964,
+      47.1389,
+      53.8675,
+      82.1141
+    ],
+    "all_positions_of_chat_prompts_l_out_27_to_31": [
+      33.5726,
+      38.2517,
+      42.6181,
+      49.1976,
+      65.7777
+    ],
+    "ffn_key_norm_post_rmsnorm_28_to_31": [
+      64.163,
+      66.2959,
+      64.5501,
+      59.2877
+    ],
+    "ffn_key_norm_noise_sequences_28_to_31": [
+      59.1116,
+      62.3657,
+      62.3618,
+      58.8092
+    ],
+    "note": "radii rise with depth in every state group measured"
+  },
+  "comparison_with_e8_spectra_summary": {
+    "mac": {
+      "r_norms": [
+        62.740422,
+        65.498958,
+        64.250502,
+        58.851399
+      ],
+      "final_pre_rmsnorm_mean_r0": 62.703345,
+      "gammas": [
+        6.805068,
+        6.186092,
+        4.709198,
+        2.073155
+      ],
+      "rhos": [
+        17.24481,
+        26.633308,
+        21.047025,
+        37.780445
+      ]
+    },
+    "r_norms": {
+      "mac": [
+        62.740422,
+        65.498958,
+        64.250502,
+        58.851399
+      ],
+      "rtx3080_ffn_key_norm": [
+        64.163,
+        66.2959,
+        64.5501,
+        59.2877
+      ],
+      "ratio_mac_over_key_norm": [
+        0.9778,
+        0.988,
+        0.9954,
+        0.9926
+      ],
+      "rtx3080_residual_after_ffn": [
+        41.4068,
+        44.5046,
+        49.6783,
+        59.0168
+      ],
+      "ratio_mac_over_residual": [
+        1.5152,
+        1.4717,
+        1.2933,
+        0.9972
+      ],
+      "not_like_for_like": "Your final_pre_rmsnorm_mean_r0 is 62.70 against our 59.02 on the decision states, while layer-31 FFN output norms agree to 0.2% on the 332 states we share. Your spectra summary is therefore on a different state set or a different tensor, and the key-norm match is not like for like."
+    },
+    "gammas_and_rhos": {
+      "mac_gammas": [
+        6.805068,
+        6.186092,
+        4.709198,
+        2.073155
+      ],
+      "mac_rhos": [
+        17.24481,
+        26.633308,
+        21.047025,
+        37.780445
+      ],
+      "rtx3080_gammas": [
+        1.1072,
+        1.2767,
+        1.6478,
+        3.1828
+      ],
+      "rtx3080_rhos": [
+        8.4151,
+        7.3811,
+        2.5609,
+        1.1584
+      ],
+      "note": "No match. Our gammas rise with depth where yours fall, and our rhos fall with depth where yours do not. We found no quantity that reproduces yours. The harvest script behind qwen35-4b-blk28-31-spectra-summary/v1 is not in the public repos; the definitions or the script would settle it."
+    },
+    "product_law_shares": {
+      "mac": [
+        0.1254,
+        0.1071,
+        0.225,
+        0.5426
+      ],
+      "rtx3080_pass_through_keys": [
+        0.1692,
+        0.1675,
+        0.3612,
+        0.3021
+      ]
+    }
+  },
+  "findings": {
+    "F1": {
+      "statement": "The E8 r_norms match post-norm FFN key norms, not residual radii.",
+      "evidence": "Within 2.2% of our up_proj input norms at all four layers, including the rise at 29 and the drop at 31. Residual radii rise monotonically from 41.4 to 59.0.",
+      "confidence": "The numerical match is measured. That your R_l is computed from up_proj inputs is an inference; the state sets differ (see comparison).",
+      "action": "Check which tensor feeds R_l in the multi-layer summary. The public layer-31 harvester hooks the up_proj input, the gate_proj output, the down_proj input and output, and the final-norm input; it has no hook on a per-layer pre-norm residual."
+    },
+    "F2": {
+      "statement": "The per-layer pass-through model fails for blk.28..30.",
+      "evidence": "Live over first-order pass-through gain on identical states: [0.318, 0.41, 0.262, 0.969]. Control-vector probe: 52% to 78% retained.",
+      "alternative_explanation": "This may be cross-position transport rather than later blocks distorting a local perturbation: an edit at blk.28..30 acts at every position, and later attention and recurrent blocks carry those changes to the decision position. The data cannot separate the two. If transport dominates, position-local per-layer gradients will not repair it; a gradient with respect to the weights through all positions would.",
+      "confidence": "high that the model fails; the cause is open",
+      "action": "Before allocating across layers, obtain per-layer targets from autograd through the full forward pass, or restrict edits to the last layer."
+    },
+    "F3": {
+      "statement": "On radial shrinkage, the last layer should carry most of the gain under this recipe.",
+      "evidence": "eta per gain squared relative to blk.31 alone: uniform 4.547, pass-through diagonal law 6.23, pass-through Gram optimum 8.821, your product-law shares 1.408, 5/5/10/80 0.786. Scale-1 costs differ 9 to 23 times between blk.31 and the others.",
+      "alternative_explanation": "It may partly be a property of these adapters rather than of the layers: mis-aimed targets, rank-8 truncation error of 0.51 to 0.65 at blk.28..30 against 0.44 at blk.31, and scales above 1.",
+      "confidence": "high for this recipe, these states and this gain level; not established in general",
+      "action": "see F2"
+    },
+    "F4": {
+      "statement": "A per-key leakage bound carries through to the final residual only for last-layer edits.",
+      "evidence": "Anchor movement (dh/R0) under identical y=0 constraints: blk.31 alone 0.0014 live (noise floor; float64 0.00053), uniform 0.0257, blk.28 alone 0.07371.",
+      "reasoning": "Preservation keys are the anchor prompt's decision position. An edit at an earlier layer also changes every earlier, unconstrained position, and later attention and recurrent blocks carry those changes into the decision position. After the last layer nothing mixes positions.",
+      "confidence": "The measurement is solid. The mechanism is reasoned and not isolated experimentally. At blk.31 the final effect equals the direct leak on the key, which is what the certificate bounds; at earlier layers the final effect is far larger than the direct leak.",
+      "action": "A leakage certificate on listed keys bounds the final effect only for last-layer edits. For earlier layers preserve all positions of the anchor prompts, or measure preservation end to end."
+    },
+    "F5": {
+      "statement": "Harvest cross-check against your bf16 PyTorch harvest.",
+      "evidence": "||ffn_out-31|| at your 332 recorded decision states: ratio mean 0.9984, sd 0.0055, range [0.9832, 1.0131], Pearson r 0.99977. Tokenisation reproduces your recorded positive and negative token ids.",
+      "confidence": "high",
+      "action": "none"
+    }
+  },
+  "pass_through_model_predictions": {
+    "note": "What the top-level keys imply if pass-through held. Exact for blk.31 only.",
+    "allocation_energy_per_unit_gain_sq": {
+      "uniform_1_over_L": {
+        "alpha": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "tangent_energy": 3.3728
+      },
+      "diagonal_law_1_over_Gll": {
+        "alpha": [
+          0.245,
+          0.184,
+          0.37,
+          0.202
+        ],
+        "tangent_energy": 3.1272
+      },
+      "gram_optimal_nonneg": {
+        "alpha": [
+          0.27,
+          0.13,
+          0.438,
+          0.162
+        ],
+        "tangent_energy": 3.0706
+      },
+      "single_layer_31": {
+        "alpha": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "tangent_energy": 8.8359
+      }
+    },
+    "floor": 1.0,
+    "cross_layer_cosine_of_unit_gain_perturbations": [
+      [
+        1.0,
+        0.224,
+        0.29,
+        0.195
+      ],
+      [
+        0.224,
+        1.0,
+        0.305,
+        0.333
+      ],
+      [
+        0.29,
+        0.305,
+        1.0,
+        0.329
+      ],
+      [
+        0.195,
+        0.333,
+        0.329,
+        1.0
+      ]
+    ],
+    "coherence_inflation_of_uniform_split": 1.762,
+    "contrast_with_live": "This model predicts a uniform split is 2.6 times BETTER than blk.31 alone. Live it is worse."
+  },
+  "calibration_states": {
+    "counts": {
+      "anchor": 24,
+      "corpus": 8,
+      "eido": 8,
+      "fv": 332
+    },
+    "noise_sequences": 2048,
+    "contrast_states_used": 345,
+    "source": "mcproof datasets/compile.jsonl and hybrid_k0.jsonl at commit 4552874, positions taken from compile/artifacts/harvested_activations.meta.json; corpus and design pairs copied from activation_harvester.py",
+    "zero_contrast_states_excluded": {
+      "n": 3,
+      "ids": [
+        "eido-0",
+        "eido-3",
+        "eido-5"
+      ],
+      "note": "positive and negative token sets identical -> contrast direction and target residual are exactly zero"
+    }
+  },
+  "model": {
+    "file": "Qwen3.5-4B-Q8_0.gguf",
+    "sha256": "10cc391b403021dd11c614679d2fd92f611c3681d29e29651b717316965d61e1",
+    "architecture": "qwen35",
+    "d_model": 2560,
+    "d_ff": 9216,
+    "note": "hybrid: blk.28..30 are recurrent (gated delta) blocks, blk.31 is a full-attention block"
+  },
+  "runtime": {
+    "llama_cpp": "b12549 (8af68d486), cu12.4 Windows release",
+    "gpu": "RTX 3080 Laptop 8 GiB, driver 566.07",
+    "offloaded_layers": "33/33",
+    "method": "ctypes on llama.dll; hidden states read through the scheduler eval callback; adapters through llama_set_adapters_lora",
+    "numerics_note": "Q8_0 matmuls quantise their input activations to 8 bits on this backend (packet 011); residual-level noise floor about 0.09 in norm."
+  },
+  "gpu_runs": {
+    "harvest": {
+      "free_mib_start": 8018,
+      "free_mib_end": 8018,
+      "clean_hardware_run": true,
+      "duration_ms": 78625.0,
+      "exit_code": 0
+    },
+    "live_allocation": {
+      "free_mib_start": 8018,
+      "free_mib_end": 8018,
+      "clean_hardware_run": true,
+      "duration_ms": 217609.0,
+      "exit_code": 0
+    },
+    "note": "Jobs were launched through mlos gpu-lease --mode infer and mlos stamp-run --zone B --require-gpu at ml-os 33c2a4f. The figures are the stamper's start and end snapshots; no separate lease record is embedded."
+  },
+  "limits": [
+    "One model, one quantisation (Q8_0), one runtime, one compile recipe, formal-verification states only for the live test, one train/held-out split.",
+    "'Held-out' means held-out prompt ids (32 of 96, every third id, 0 overlap) inside the same four template families. 98% of held-out states reuse a (positive token, negative set) pair seen in training, and the nearest training prompt has median string similarity 0.71 (difflib ratio). The 24 anchors evaluated are the anchors used as preservation keys at compile time.",
+    "Per-layer targets pull the final-norm contrast direction back through each layer's own W_down. This is how the E8 synthetic stack builds them; we do not know how your live 4-layer adapters were built.",
+    "Allocations were compared at realised gains of 0.8 to 2.8 (1.8 to 2.8 without the blk.30-alone row) and normalised by gain squared, which assumes the quadratic regime. blk.28..30 leave it early.",
+    "Per-layer adapters were compiled without safety directions, which are not available on this machine.",
+    "Bootstrap intervals resample states, not prompts."
+  ],
+  "review": "Two independent review rounds recomputed this packet from raw files. All numbers reproduced. Round 1 raised findings on definitions and wording, including that the top-level keys were then a constructed set; round 2 confirmed those fixes and raised further wording points. The round-2 fixes were applied by the author and not independently re-checked.",
+  "artifact_sha256": {
+    "harvest_v1.npz": "e821eb683d7e1fd53d43e347fbb8b6b2d59f7685f47c239e07d9478ec8a0364c",
+    "m1_analysis_v1.json": "e255846ae45b5d34fa203fce195d602172a5d0c4a3d6e6dfdcf6a10a5405ac5e",
+    "alloc_live_v2.json": "36d6ea3d359b391ff289c3d0d6923affea9a0c05015a73842ea8372b6bea1b94",
+    "alloc_live_v1.json": "2a0dcfcd9bb09d5d7a78a638381660b20f2f7f6d3c12b74135f619a6eb0e08b7",
+    "probe_analysis_v1.json": "9d502146e06576e67278055ddd203d2c26b7f62036d9453732b47b19063a658e",
+    "alloc_passthrough_vs_live.json": "0f60512de60f462f614521d4561cee44e870cb71961b4cedb44ac2fa2c110742",
+    "adapter:plain_blk28": "3c0603d884f5566aa1727bda369f42d7daaa4f27ceffe40c722773b1e53ef131",
+    "adapter:plain_blk29": "34ad72f3613e777eee3a791219c10d12399bb39fbe9c7906e40b6889f4bb82dc",
+    "adapter:plain_blk30": "c3379eac2fee09cb66e18fb712db156975353fcf42b86adebaada4458b0d7530",
+    "adapter:plain_blk31": "5bbc37371cd5791ac5ba9acdd0bd8b90abf967142726c019dd7284add9dd87e4",
+    "script:harvest.py": "073f486a25439a965827232331d9acaa8ed632ee5314c451122c61918d3d133b",
+    "script:m1_analyze.py": "0c2a0c83a560c89c1507abda21b9d5b998cc4c3ba2c1d62364e841f2fcbfe53d",
+    "script:probe.py": "91e4050b84e4487989e6b9544695a0b00d9c4df0cc3a10b61535a976463b8652",
+    "script:probe_analyze.py": "6f27f015ae1c815272b7d6b6b5189647754f41c6b7709fc2eddb28783f4bad88",
+    "script:alloc_build.py": "33c009068821af3d76a873b1192487c60fcce692e6941fc13a54ceaed7e7f6cc",
+    "script:alloc_live.py": "368ce3d2b5ad64a1d8319a66f6d5b86c020cd7266b696c10fbfb868c85a4e1b9",
+    "script:passthrough_vs_live.py": "d86d86aefb0199d6d77fd031b4ebdb4c23cbdce8aaae879bccedaba314b836ff",
+    "script:llama_ctypes.py": "a61a96b8ef3ef6469909e7673941eba15504c0485bc4043e8358ad1b19894b51",
+    "script:ggufw.py": "9e3e7dfc033942d96caec5cd8efa931d03fae52028660a0c8827cdcf8e225c83",
+    "script:jobs.py": "58e2f1e3cfe562d7839eb8a14b79e689b3336cab4334af3552fadf5d9767bfee",
+    "script:render.py": "2c1d8fca3fce875095139d74275e10e0a1d1d8fce0191eaf55002bbbfb79d484"
+  },
+  "scrubbed": "user paths and tailnet/LAN IPs replaced with placeholders; no keys or tokens. Raw logs are not shipped."
+}
