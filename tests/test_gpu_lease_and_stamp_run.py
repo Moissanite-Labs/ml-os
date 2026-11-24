@@ -21,6 +21,7 @@ from ml_os.gpu_lease import (
 from ml_os.stamp_run import (
     StampAnomalyError,
     decode_clocks_event_reasons,
+    evaluate_telemetry_anomalies,
     stamp_run,
 )
 
@@ -213,6 +214,136 @@ class TestGpuLeaseAndStampRun(unittest.TestCase):
             self.assertFalse(no_gpu["gpu_telemetry_available"])
             self.assertIsNone(no_gpu["start_gpu_telemetry"])
             self.assertIsNone(no_gpu["end_gpu_telemetry"])
+
+    def test_linux_kmd_baseline_vram_and_fail_closed_desktop_process_guards(self) -> None:
+        pids_none = "GPU 00000000:01:00.0\n    Processes                                          : None\n"
+        pids_xorg = (
+            "GPU 00000000:01:00.0\n"
+            "    Processes\n"
+            "        Process ID                        : 1200\n"
+            "            Type                          : G\n"
+            "            Name                          : /usr/lib/Xorg\n"
+            "            Used GPU Memory               : 2 MiB\n"
+        )
+        pids_hybrid = (
+            "GPU 00000000:01:00.0\n"
+            "    Processes\n"
+            "        Process ID                        : 1300\n"
+            "            Type                          : C+G\n"
+            "            Name                          : /usr/bin/compositor\n"
+            "            Used GPU Memory               : 0 MiB\n"
+        )
+
+        def make_runner(used_mib: int, pids_rc: int, pids_out: str) -> object:
+            def _runner(cmd: list[str]) -> tuple[int, str, str]:
+                if cmd[0] == "nvidia-smi" and "--query-gpu" in cmd[1]:
+                    free_mib = max(0, 8192 - used_mib)
+                    return (
+                        0,
+                        f"NVIDIA GeForce RTX 3080 Laptop GPU, 615.78.08, 94.04.49.00.51, P0, 1245, 6001, 20.1, N/A, 55, {used_mib}, {free_mib}, 0x0000000000000001\n",
+                        "",
+                    )
+                if cmd[0] == "nvidia-smi" and "--query-compute-apps" in cmd[1]:
+                    return (0, "", "")
+                if cmd == ["nvidia-smi", "-q", "-d", "PIDS"]:
+                    return (pids_rc, pids_out, "")
+                return (127, "", "")
+
+            return _runner
+
+        # 1. Verified Linux KMD zero-process baseline (2 MiB and exact 4 MiB boundary) -> clean_hardware_run=True.
+        for baseline_mib in (2, 4):
+            rec = stamp_run(
+                command=[sys.executable, "-c", "pass"],
+                profile_path=UX582_PROFILE,
+                zone="B",
+                strict_anomalies=True,
+                runner=make_runner(baseline_mib, 0, pids_none),  # type: ignore[arg-type]
+                host_os="linux",
+            )
+            self.assertTrue(rec["clean_hardware_run"])
+            self.assertEqual(rec["anomalies"], [])
+            self.assertTrue(rec["start_gpu_telemetry"]["gpu_processes_queried"])
+            self.assertEqual(rec["start_gpu_telemetry"]["graphics_processes"], [])
+            self.assertEqual(rec["start_gpu_telemetry"]["linux_kmd_baseline_vram_mib"], baseline_mib)
+
+        # 2. Must-fail: Linux zero-process > 4 MiB (5 MiB) -> WDDM_OR_DESKTOP_VRAM_NONZERO.
+        with self.assertRaises(StampAnomalyError):
+            stamp_run(
+                command=[sys.executable, "-c", "pass"],
+                profile_path=UX582_PROFILE,
+                zone="B",
+                strict_anomalies=True,
+                runner=make_runner(5, 0, pids_none),  # type: ignore[arg-type]
+                host_os="linux",
+            )
+
+        # 3. Must-fail: Linux 2 MiB when PIDS query fails or is Not Supported -> fail-closed!
+        for rc_bad, out_bad in ((1, ""), (0, "GPU 00000000:01:00.0\n    Processes : Not Supported\n")):
+            rec_unverified = stamp_run(
+                command=[sys.executable, "-c", "pass"],
+                profile_path=UX582_PROFILE,
+                zone="B",
+                strict_anomalies=False,
+                runner=make_runner(2, rc_bad, out_bad),  # type: ignore[arg-type]
+                host_os="linux",
+            )
+            self.assertFalse(rec_unverified["clean_hardware_run"])
+            self.assertFalse(rec_unverified["start_gpu_telemetry"]["gpu_processes_queried"])
+            self.assertEqual(rec_unverified["start_gpu_telemetry"]["linux_kmd_baseline_vram_mib"], 0)
+            self.assertTrue(any(a.startswith("WDDM_OR_DESKTOP_VRAM_NONZERO") for a in rec_unverified["anomalies"]))
+
+        # 4. Must-fail: Real X11/Wayland Type G process even at 2 MiB -> BOTH alerts fire!
+        rec_xorg = stamp_run(
+            command=[sys.executable, "-c", "pass"],
+            profile_path=UX582_PROFILE,
+            zone="B",
+            strict_anomalies=False,
+            runner=make_runner(2, 0, pids_xorg),  # type: ignore[arg-type]
+            host_os="linux",
+        )
+        self.assertFalse(rec_xorg["clean_hardware_run"])
+        self.assertTrue(any(a.startswith("DESKTOP_GPU_PROCESS_ACTIVE") for a in rec_xorg["anomalies"]))
+        self.assertTrue(any(a.startswith("WDDM_OR_DESKTOP_VRAM_NONZERO") for a in rec_xorg["anomalies"]))
+
+        # 5. Must-fail: Hybrid C+G desktop process even at 0 MiB VRAM -> DESKTOP_GPU_PROCESS_ACTIVE fires!
+        rec_hybrid = stamp_run(
+            command=[sys.executable, "-c", "pass"],
+            profile_path=UX582_PROFILE,
+            zone="B",
+            strict_anomalies=False,
+            runner=make_runner(0, 0, pids_hybrid),  # type: ignore[arg-type]
+            host_os="linux",
+        )
+        self.assertFalse(rec_hybrid["clean_hardware_run"])
+        self.assertTrue(any(a.startswith("DESKTOP_GPU_PROCESS_ACTIVE") for a in rec_hybrid["anomalies"]))
+
+        # 6. Must-fail: Windows WDDM host NEVER receives the Linux KMD <= 4 MiB allowance!
+        rec_win = stamp_run(
+            command=[sys.executable, "-c", "pass"],
+            profile_path=UX582_PROFILE,
+            zone="B",
+            strict_anomalies=False,
+            runner=make_runner(2, 0, pids_none),  # type: ignore[arg-type]
+            host_os="windows",
+        )
+        self.assertFalse(rec_win["clean_hardware_run"])
+        self.assertEqual(rec_win["start_gpu_telemetry"]["linux_kmd_baseline_vram_mib"], 0)
+        self.assertTrue(any(a.startswith("WDDM_OR_DESKTOP_VRAM_NONZERO") for a in rec_win["anomalies"]))
+
+        # 7. Direct evaluate_telemetry_anomalies check with bool non_compute_desktop_vram_mib (no bool-as-int bypass).
+        anoms_clean = evaluate_telemetry_anomalies(
+            start_gpu={
+                "non_compute_desktop_vram_mib": 2,
+                "gpu_processes_queried": True,
+                "graphics_processes": [],
+                "clocks_event_reasons": {},
+            },
+            end_gpu=None,
+            max_desktop_vram_mib=0,
+            host_os="linux",
+        )
+        self.assertEqual(anoms_clean, [])
 
 
 if __name__ == "__main__":

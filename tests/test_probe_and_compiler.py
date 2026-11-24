@@ -13,6 +13,7 @@ import unittest
 from ml_os.adapt import load_profile
 from ml_os.compiler import compile_profile, verify_compiled_directory
 from ml_os.probe import (
+    parse_nvidia_smi_pids,
     parse_windows_text_inventory,
     probe_host,
     probe_linux,
@@ -109,8 +110,13 @@ class TestProbeAndCompiler(unittest.TestCase):
             nvme_dir.mkdir(parents=True)
             (nvme_dir / "model").write_text("Samsung MZVL21T0HCLR\n", encoding="utf-8")
 
+            lspci_calls: list[list[str]] = []
+
             def fake_runner(cmd: list[str]) -> tuple[int, str, str]:
                 if cmd[0] == "lspci":
+                    lspci_calls.append(list(cmd))
+                    if cmd != ["lspci", "-Dnn"]:
+                        return (1, "", "lspci: option requires an argument -- 's'")
                     return (
                         0,
                         "0000:00:02.0 VGA compatible controller [0300]: Intel Corporation TigerLake-H GT1 [UHD Graphics] [8086:9a60]\n"
@@ -125,14 +131,22 @@ class TestProbeAndCompiler(unittest.TestCase):
                     )
                 if cmd[0] == "nvidia-smi" and "--query-compute-apps" in cmd[1]:
                     return (0, "", "")
+                if cmd == ["nvidia-smi", "-q", "-d", "PIDS"]:
+                    return (
+                        0,
+                        "GPU 00000000:01:00.0\n    Processes                                          : None\n",
+                        "",
+                    )
                 return (127, "", "not mocked")
 
             info = probe_linux(runner=fake_runner, root=root, screenpad_led_subpath=led_subpath)
+            self.assertEqual(lspci_calls, [["lspci", "-Dnn"]])
             self.assertEqual(info["manufacturer"], "ASUSTeK COMPUTER INC.")
             self.assertEqual(info["model"], "ZenBook Pro Duo UX582HS")
             self.assertEqual(info["cpu_cores"], 8)
             self.assertEqual(info["cpu_threads"], 16)
             self.assertEqual(info["igpu_pci"], "0000:00:02.0")
+            self.assertIn("Intel Corporation TigerLake-H GT1", info["igpu_model"])
             self.assertEqual(info["dgpu_pci"], "0000:01:00.0")
             self.assertEqual(info["dgpu_arch"], "sm_86")
             self.assertEqual(info["dgpu_vram_mib"], 8192)
@@ -141,6 +155,64 @@ class TestProbeAndCompiler(unittest.TestCase):
             self.assertEqual(info["dual_screen"]["asus_screenpad_brightness"], 64)
             self.assertTrue(info["dual_screen"]["lid_open"])
             self.assertEqual(info["nvidia_telemetry"]["non_compute_desktop_vram_mib"], 0)
+            self.assertTrue(info["nvidia_telemetry"]["gpu_processes_queried"])
+            self.assertEqual(info["nvidia_telemetry"]["graphics_processes"], [])
+            self.assertEqual(info["nvidia_telemetry"]["linux_kmd_baseline_vram_mib"], 0)
+
+    def test_nvidia_pids_parser_and_omarchy_lua_reference(self) -> None:
+        ok_none, procs_none = parse_nvidia_smi_pids(
+            "GPU 00000000:01:00.0\n    Processes                                          : None\n"
+        )
+        self.assertTrue(ok_none)
+        self.assertEqual(procs_none, ())
+
+        ok_unsup, procs_unsup = parse_nvidia_smi_pids(
+            "GPU 00000000:01:00.0\n    Processes                                          : Not Supported\n"
+        )
+        self.assertFalse(ok_unsup)
+        self.assertEqual(procs_unsup, ())
+
+        ok_missing, procs_missing = parse_nvidia_smi_pids("Attached GPUs : 1\n")
+        self.assertFalse(ok_missing)
+        self.assertEqual(procs_missing, ())
+
+        ok_mixed, procs_mixed = parse_nvidia_smi_pids(
+            "GPU 00000000:01:00.0\n"
+            "    Processes\n"
+            "        GPU instance ID                   : N/A\n"
+            "        Compute instance ID               : N/A\n"
+            "        Process ID                        : 4242\n"
+            "            Type                          : G\n"
+            "            Name                          : /usr/lib/Xorg\n"
+            "            Used GPU Memory               : 18 MiB\n"
+            "        Process ID                        : 5151\n"
+            "            Type                          : C\n"
+            "            Name                          : /usr/bin/python3\n"
+            "            Used GPU Memory               : 512 MiB\n"
+        )
+        self.assertTrue(ok_mixed)
+        self.assertEqual(len(procs_mixed), 2)
+        self.assertEqual(procs_mixed[0]["type"], "G")
+        self.assertEqual(procs_mixed[0]["used_gpu_memory_mib"], 18)
+        self.assertEqual(procs_mixed[1]["type"], "C")
+
+        ok_bad, _ = parse_nvidia_smi_pids(
+            "GPU 00000000:01:00.0\n"
+            "    Processes\n"
+            "        Process ID                        : 777\n"
+            "            Name                          : /usr/bin/missing-type\n"
+        )
+        self.assertFalse(ok_bad)
+
+        omarchy_lua = REPO_ROOT / "docs" / "omarchy-4.5-ux582hs-monitors.lua"
+        self.assertTrue(omarchy_lua.is_file())
+        lua_txt = omarchy_lua.read_text(encoding="utf-8")
+        self.assertIn('output = "eDP-1"', lua_txt)
+        self.assertIn('output = "DP-3"', lua_txt)
+        self.assertIn('mode = "3840x1100@60"', lua_txt)
+        self.assertIn('position = "0x1080"', lua_txt)
+        self.assertIn('name = "elan9009:00-04f3:2c23"', lua_txt)
+        self.assertIn('name = "elan9008:00-04f3:2c56"', lua_txt)
 
     def test_windows_and_macos_probes_never_fabricate_missing_fields(self) -> None:
         win_json = json.dumps(
