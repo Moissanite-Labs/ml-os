@@ -13,7 +13,14 @@ import time
 from typing import Any
 
 from ml_os.adapt import ProfileValidationError, collect_profile_violations, load_profile, sha256_bytes
-from ml_os.probe import CommandRunner, default_command_runner
+from ml_os.probe import (
+    LINUX_KMD_BASELINE_VRAM_MAX_MIB,
+    CommandRunner,
+    compute_linux_kmd_baseline_mib,
+    default_command_runner,
+    extract_graphics_processes,
+    probe_nvidia_gpu_processes,
+)
 
 STAMP_RECEIPT_SCHEMA = "mlos-run-receipt/v0.1"
 
@@ -165,7 +172,11 @@ def _parse_int_or_none(val: str) -> int | None:
         return None
 
 
-def sample_nvidia_telemetry(runner: CommandRunner = default_command_runner) -> dict[str, Any] | None:
+def sample_nvidia_telemetry(
+    runner: CommandRunner = default_command_runner,
+    *,
+    host_os: str | None = None,
+) -> dict[str, Any] | None:
     """Capture a single real nvidia-smi CSV snapshot + compute vs desktop VRAM breakdown."""
     rc, out, _ = runner(
         [
@@ -210,9 +221,18 @@ def sample_nvidia_telemetry(runner: CommandRunner = default_command_runner) -> d
                 }
             )
 
+    procs_queried, all_gpu_procs = probe_nvidia_gpu_processes(runner=runner)
+    graphics_procs = extract_graphics_processes(all_gpu_procs)
+
     mem_used = _parse_int_or_none(cols[9])
     mem_free = _parse_int_or_none(cols[10])
     desktop_vram = max(0, mem_used - compute_vram) if mem_used is not None else None
+    kmd_baseline_mib = compute_linux_kmd_baseline_mib(
+        host_os=host_os,
+        desktop_vram_mib=desktop_vram,
+        gpu_processes_queried=procs_queried,
+        graphics_processes=graphics_procs,
+    )
     clocks_decoded = decode_clocks_event_reasons(cols[11])
 
     return {
@@ -229,6 +249,9 @@ def sample_nvidia_telemetry(runner: CommandRunner = default_command_runner) -> d
         "memory_free_mib": mem_free,
         "compute_vram_mib": compute_vram,
         "non_compute_desktop_vram_mib": desktop_vram,
+        "linux_kmd_baseline_vram_mib": kmd_baseline_mib,
+        "gpu_processes_queried": procs_queried,
+        "graphics_processes": graphics_procs,
         "compute_processes": compute_apps,
         "clocks_event_reasons": clocks_decoded,
     }
@@ -253,18 +276,51 @@ def evaluate_telemetry_anomalies(
     start_gpu: dict[str, Any] | None,
     end_gpu: dict[str, Any] | None,
     max_desktop_vram_mib: int = 0,
+    host_os: str | None = None,
+    max_linux_kmd_baseline_mib: int = LINUX_KMD_BASELINE_VRAM_MAX_MIB,
 ) -> list[str]:
-    """Detect desktop/WDDM VRAM waste, thermal throttling, clock slowdowns, and lingering compute VRAM."""
+    """Detect desktop/WDDM VRAM waste, active desktop GPU processes, throttling, and lingering VRAM.
+
+    On Linux, NVIDIA KMD drivers can reserve <= 4 MiB of internal driver metadata with zero
+    active graphics processes. That baseline is accepted only when `host_os == 'linux'`,
+    `nvidia-smi -q -d PIDS` succeeded (`gpu_processes_queried is True`), zero graphics or
+    hybrid (`G` / `C+G`) processes are attached, and `non_compute_desktop_vram_mib <= 4`.
+    Any real graphics/desktop process or unverified VRAM overhead fails closed.
+    """
     anomalies: list[str] = []
+    norm_os = (host_os if host_os is not None else platform.system()).strip().lower()
 
     for phase_label, snap in (("start", start_gpu), ("end", end_gpu)):
         if snap is None:
             continue
+        graphics_procs = snap.get("graphics_processes")
+        if graphics_procs is not None:
+            if not isinstance(graphics_procs, (list, tuple)):
+                anomalies.append(f"INVALID_TELEMETRY_TYPE:{phase_label}:graphics_processes")
+            elif len(graphics_procs) > 0:
+                anomalies.append(
+                    f"DESKTOP_GPU_PROCESS_ACTIVE:{phase_label}:{len(graphics_procs)}proc"
+                )
+
         desktop_mib = snap.get("non_compute_desktop_vram_mib")
-        if isinstance(desktop_mib, int) and desktop_mib > max_desktop_vram_mib:
-            anomalies.append(
-                f"WDDM_OR_DESKTOP_VRAM_NONZERO:{phase_label}:{desktop_mib}MiB>{max_desktop_vram_mib}MiB"
-            )
+        if desktop_mib is not None:
+            if type(desktop_mib) is not int:
+                anomalies.append(
+                    f"INVALID_TELEMETRY_TYPE:{phase_label}:non_compute_desktop_vram_mib"
+                )
+            elif desktop_mib > max_desktop_vram_mib:
+                is_verified_linux_kmd_baseline = (
+                    norm_os == "linux"
+                    and snap.get("gpu_processes_queried") is True
+                    and isinstance(graphics_procs, (list, tuple))
+                    and len(graphics_procs) == 0
+                    and type(max_linux_kmd_baseline_mib) is int
+                    and desktop_mib <= max_linux_kmd_baseline_mib
+                )
+                if not is_verified_linux_kmd_baseline:
+                    anomalies.append(
+                        f"WDDM_OR_DESKTOP_VRAM_NONZERO:{phase_label}:{desktop_mib}MiB>{max_desktop_vram_mib}MiB"
+                    )
         reasons = snap.get("clocks_event_reasons") or {}
         if reasons.get("thermal_throttled") is True:
             anomalies.append(
@@ -277,8 +333,11 @@ def evaluate_telemetry_anomalies(
 
     if end_gpu is not None:
         end_compute = end_gpu.get("compute_vram_mib")
-        if isinstance(end_compute, int) and end_compute > 0:
-            anomalies.append(f"LINGERING_COMPUTE_VRAM_NONZERO:end:{end_compute}MiB")
+        if end_compute is not None:
+            if type(end_compute) is not int:
+                anomalies.append("INVALID_TELEMETRY_TYPE:end:compute_vram_mib")
+            elif end_compute > 0:
+                anomalies.append(f"LINGERING_COMPUTE_VRAM_NONZERO:end:{end_compute}MiB")
 
     return anomalies
 
@@ -294,6 +353,7 @@ def stamp_run(
     strict_anomalies: bool = False,
     runner: CommandRunner = default_command_runner,
     base_env: dict[str, str] | None = None,
+    host_os: str | None = None,
 ) -> dict[str, Any]:
     """Execute command under deterministic Zone A/B pins and emit a SHA-256 provenance receipt."""
     if not command:
@@ -305,7 +365,7 @@ def stamp_run(
         raise ProfileValidationError(violations)
 
     exec_env, applied_pins = build_deterministic_env(zone, base_env=base_env)
-    start_gpu = sample_nvidia_telemetry(runner=runner)
+    start_gpu = sample_nvidia_telemetry(runner=runner, host_os=host_os)
     if require_gpu and start_gpu is None:
         raise StampAnomalyError("ERR_STAMP_GPU_MISSING: --require-gpu set, and nvidia-smi is unavailable")
 
@@ -320,12 +380,13 @@ def stamp_run(
     elapsed_ms = round((time.monotonic() - t0) * 1000.0, 3)
     ended_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    end_gpu = sample_nvidia_telemetry(runner=runner)
+    end_gpu = sample_nvidia_telemetry(runner=runner, host_os=host_os)
     desktop_cap = int(profile["ring0_locked"]["dgpu_desktop_vram_mib"])
     anomalies = evaluate_telemetry_anomalies(
         start_gpu=start_gpu,
         end_gpu=end_gpu,
         max_desktop_vram_mib=desktop_cap,
+        host_os=host_os,
     )
 
     body: dict[str, Any] = {
