@@ -114,15 +114,22 @@ class NvidiaProbeTelemetry:
         }
 
 
+_PIDS_MIG_KEYS = frozenset({"GPU instance ID", "Compute instance ID"})
+
+
 def parse_nvidia_smi_pids(output: str) -> tuple[bool, tuple[dict[str, Any], ...]]:
     """Parse `nvidia-smi -q -d PIDS` output fail-closed.
 
-    Returns `(True, processes)` only when an explicit `Processes` section is present
-    and fully parsed (including `Processes : None`). Returns `(False, ())` if the
-    driver reports `Not Supported` / `N/A` or omits/corrupts process entries.
+    Returns `(True, processes)` only when every GPU block carries an explicit
+    `Processes` section (either `Processes : None` or a non-empty list of valid
+    `Process ID` entries with known keys and non-empty `Type`). Returns `(False, ())`
+    on `Not Supported` / `N/A`, empty `Processes` blocks, unknown keys, missing
+    per-GPU sections, or malformed process records.
     """
-    saw_section = False
+    in_gpu_block = False
+    gpu_saw_processes = False
     in_processes = False
+    section_had_entries = False
     procs: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
 
@@ -130,10 +137,20 @@ def parse_nvidia_smi_pids(output: str) -> tuple[bool, tuple[dict[str, Any], ...]
         nonlocal current
         if current is None:
             return True
-        if current.get("pid") is None or not current.get("type"):
+        if not current.get("type"):
             return False
         procs.append(current)
         current = None
+        return True
+
+    def _close_processes_section() -> bool:
+        nonlocal in_processes, section_had_entries
+        if not _flush():
+            return False
+        if in_processes and not section_had_entries:
+            return False
+        in_processes = False
+        section_had_entries = False
         return True
 
     for raw_line in output.splitlines():
@@ -142,9 +159,12 @@ def parse_nvidia_smi_pids(output: str) -> tuple[bool, tuple[dict[str, Any], ...]
             continue
         indent = len(raw_line) - len(raw_line.lstrip(" "))
         if indent == 0 and stripped.startswith("GPU "):
-            if not _flush():
+            if not _close_processes_section():
                 return (False, ())
-            in_processes = False
+            if in_gpu_block and not gpu_saw_processes:
+                return (False, ())
+            in_gpu_block = True
+            gpu_saw_processes = False
             continue
 
         if ":" in stripped:
@@ -153,15 +173,16 @@ def parse_nvidia_smi_pids(output: str) -> tuple[bool, tuple[dict[str, Any], ...]
             key, val = stripped, ""
 
         if key == "Processes":
-            if not _flush():
+            if not _close_processes_section():
                 return (False, ())
             low_val = val.lower()
             if low_val == "none":
-                saw_section = True
+                gpu_saw_processes = True
                 in_processes = False
             elif low_val == "":
-                saw_section = True
+                gpu_saw_processes = True
                 in_processes = True
+                section_had_entries = False
             else:
                 return (False, ())
             continue
@@ -181,17 +202,21 @@ def parse_nvidia_smi_pids(output: str) -> tuple[bool, tuple[dict[str, Any], ...]
                 "process_name": None,
                 "used_gpu_memory_mib": None,
             }
-        elif current is not None:
-            if key == "Type":
-                norm_type = val.strip().upper()
-                current["type"] = norm_type if norm_type else None
-            elif key == "Name":
-                current["process_name"] = val.strip() or None
-            elif key == "Used GPU Memory":
-                mem_val = _parse_int_or_none(val)
-                current["used_gpu_memory_mib"] = max(0, mem_val) if mem_val is not None else None
+            section_had_entries = True
+        elif key in _PIDS_MIG_KEYS:
+            continue
+        elif current is not None and key == "Type":
+            norm_type = val.strip().upper()
+            current["type"] = norm_type if norm_type else None
+        elif current is not None and key == "Name":
+            current["process_name"] = val.strip() or None
+        elif current is not None and key == "Used GPU Memory":
+            mem_val = _parse_int_or_none(val)
+            current["used_gpu_memory_mib"] = max(0, mem_val) if mem_val is not None else None
+        else:
+            return (False, ())
 
-    if not _flush() or not saw_section:
+    if not _close_processes_section() or not gpu_saw_processes:
         return (False, ())
     return (True, tuple(procs))
 
@@ -201,7 +226,7 @@ def probe_nvidia_gpu_processes(
 ) -> tuple[bool, tuple[dict[str, Any], ...]]:
     """Query all active GPU processes (graphics and compute) via `nvidia-smi -q -d PIDS`."""
     rc, out, _ = runner(["nvidia-smi", "-q", "-d", "PIDS"])
-    if rc != 0 or not out.strip():
+    if rc != 0:
         return (False, ())
     return parse_nvidia_smi_pids(out)
 
@@ -210,7 +235,8 @@ def extract_graphics_processes(gpu_processes: Sequence[dict[str, Any]]) -> list[
     """Return every active GPU process that is not pure compute (`type != 'C'`), fail-closed."""
     graphics: list[dict[str, Any]] = []
     for proc in gpu_processes:
-        ptype = str(proc.get("type") or "").strip().upper()
+        raw_type = proc.get("type")
+        ptype = raw_type.strip().upper() if isinstance(raw_type, str) else ""
         if ptype != "C":
             graphics.append(dict(proc))
     return graphics
@@ -229,9 +255,11 @@ def compute_linux_kmd_baseline_mib(
     if (
         norm_os == "linux"
         and gpu_processes_queried is True
+        and isinstance(graphics_processes, (list, tuple))
         and len(graphics_processes) == 0
         and type(desktop_vram_mib) is int
-        and 0 < desktop_vram_mib <= max_baseline_mib
+        and type(max_baseline_mib) is int
+        and 1 <= desktop_vram_mib <= max_baseline_mib
     ):
         return desktop_vram_mib
     return 0

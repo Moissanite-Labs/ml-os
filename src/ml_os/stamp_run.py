@@ -294,26 +294,33 @@ def evaluate_telemetry_anomalies(
         if snap is None:
             continue
         graphics_procs = snap.get("graphics_processes")
-        if isinstance(graphics_procs, list) and len(graphics_procs) > 0:
-            anomalies.append(
-                f"DESKTOP_GPU_PROCESS_ACTIVE:{phase_label}:{len(graphics_procs)}proc"
-            )
+        if graphics_procs is not None:
+            if not isinstance(graphics_procs, (list, tuple)):
+                anomalies.append(f"INVALID_TELEMETRY_TYPE:{phase_label}:graphics_processes")
+            elif len(graphics_procs) > 0:
+                anomalies.append(
+                    f"DESKTOP_GPU_PROCESS_ACTIVE:{phase_label}:{len(graphics_procs)}proc"
+                )
 
         desktop_mib = snap.get("non_compute_desktop_vram_mib")
-        if type(desktop_mib) is int and desktop_mib > max_desktop_vram_mib:
-            is_verified_linux_kmd_baseline = (
-                norm_os == "linux"
-                and snap.get("gpu_processes_queried") is True
-                and isinstance(graphics_procs, list)
-                and len(graphics_procs) == 0
-                and type(max_linux_kmd_baseline_mib) is int
-                and max_linux_kmd_baseline_mib >= 0
-                and desktop_mib <= max_linux_kmd_baseline_mib
-            )
-            if not is_verified_linux_kmd_baseline:
+        if desktop_mib is not None:
+            if type(desktop_mib) is not int:
                 anomalies.append(
-                    f"WDDM_OR_DESKTOP_VRAM_NONZERO:{phase_label}:{desktop_mib}MiB>{max_desktop_vram_mib}MiB"
+                    f"INVALID_TELEMETRY_TYPE:{phase_label}:non_compute_desktop_vram_mib"
                 )
+            elif desktop_mib > max_desktop_vram_mib:
+                is_verified_linux_kmd_baseline = (
+                    norm_os == "linux"
+                    and snap.get("gpu_processes_queried") is True
+                    and isinstance(graphics_procs, (list, tuple))
+                    and len(graphics_procs) == 0
+                    and type(max_linux_kmd_baseline_mib) is int
+                    and desktop_mib <= max_linux_kmd_baseline_mib
+                )
+                if not is_verified_linux_kmd_baseline:
+                    anomalies.append(
+                        f"WDDM_OR_DESKTOP_VRAM_NONZERO:{phase_label}:{desktop_mib}MiB>{max_desktop_vram_mib}MiB"
+                    )
         reasons = snap.get("clocks_event_reasons") or {}
         if reasons.get("thermal_throttled") is True:
             anomalies.append(
@@ -326,8 +333,11 @@ def evaluate_telemetry_anomalies(
 
     if end_gpu is not None:
         end_compute = end_gpu.get("compute_vram_mib")
-        if type(end_compute) is int and end_compute > 0:
-            anomalies.append(f"LINGERING_COMPUTE_VRAM_NONZERO:end:{end_compute}MiB")
+        if end_compute is not None:
+            if type(end_compute) is not int:
+                anomalies.append("INVALID_TELEMETRY_TYPE:end:compute_vram_mib")
+            elif end_compute > 0:
+                anomalies.append(f"LINGERING_COMPUTE_VRAM_NONZERO:end:{end_compute}MiB")
 
     return anomalies
 

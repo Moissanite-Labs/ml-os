@@ -331,19 +331,125 @@ class TestGpuLeaseAndStampRun(unittest.TestCase):
         self.assertEqual(rec_win["start_gpu_telemetry"]["linux_kmd_baseline_vram_mib"], 0)
         self.assertTrue(any(a.startswith("WDDM_OR_DESKTOP_VRAM_NONZERO") for a in rec_win["anomalies"]))
 
-        # 7. Direct evaluate_telemetry_anomalies check with bool non_compute_desktop_vram_mib (no bool-as-int bypass).
+        # 7. Direct evaluate_telemetry_anomalies checks: tuple/list graphics_processes, bool/type fail-closed,
+        # KMD boundary caps, and LINGERING_COMPUTE_VRAM_NONZERO.
         anoms_clean = evaluate_telemetry_anomalies(
             start_gpu={
                 "non_compute_desktop_vram_mib": 2,
                 "gpu_processes_queried": True,
+                "graphics_processes": (),
+                "clocks_event_reasons": {},
+            },
+            end_gpu={
+                "non_compute_desktop_vram_mib": 0,
+                "compute_vram_mib": 0,
+                "gpu_processes_queried": True,
                 "graphics_processes": [],
+                "clocks_event_reasons": {},
+            },
+            max_desktop_vram_mib=0,
+            host_os="linux",
+        )
+        self.assertEqual(anoms_clean, [])
+
+        # MLOS-UX-02: tuple graphics_processes (matching NvidiaProbeTelemetry) MUST trigger DESKTOP_GPU_PROCESS_ACTIVE!
+        anoms_tuple = evaluate_telemetry_anomalies(
+            start_gpu={
+                "non_compute_desktop_vram_mib": 0,
+                "gpu_processes_queried": True,
+                "graphics_processes": ({"pid": 1, "type": "G"},),
                 "clocks_event_reasons": {},
             },
             end_gpu=None,
             max_desktop_vram_mib=0,
             host_os="linux",
         )
-        self.assertEqual(anoms_clean, [])
+        self.assertEqual(anoms_tuple, ["DESKTOP_GPU_PROCESS_ACTIVE:start:1proc"])
+
+        # Non-sequence graphics_processes -> fail closed (INVALID_TELEMETRY_TYPE + WDDM_OR_DESKTOP_VRAM_NONZERO).
+        anoms_bad_gfx = evaluate_telemetry_anomalies(
+            start_gpu={
+                "non_compute_desktop_vram_mib": 2,
+                "gpu_processes_queried": True,
+                "graphics_processes": "",
+                "clocks_event_reasons": {},
+            },
+            end_gpu=None,
+            max_desktop_vram_mib=0,
+            host_os="linux",
+        )
+        self.assertIn("INVALID_TELEMETRY_TYPE:start:graphics_processes", anoms_bad_gfx)
+        self.assertTrue(any(a.startswith("WDDM_OR_DESKTOP_VRAM_NONZERO:start:") for a in anoms_bad_gfx))
+
+        # graphics_processes=None -> no DESKTOP_GPU_PROCESS_ACTIVE, but blocks Linux KMD allowance.
+        anoms_none_gfx = evaluate_telemetry_anomalies(
+            start_gpu={
+                "non_compute_desktop_vram_mib": 2,
+                "gpu_processes_queried": True,
+                "graphics_processes": None,
+                "clocks_event_reasons": {},
+            },
+            end_gpu=None,
+            max_desktop_vram_mib=0,
+            host_os="linux",
+        )
+        self.assertFalse(any(a.startswith("DESKTOP_GPU_PROCESS_ACTIVE") for a in anoms_none_gfx))
+        self.assertTrue(any(a.startswith("WDDM_OR_DESKTOP_VRAM_NONZERO:start:") for a in anoms_none_gfx))
+
+        # Bool non_compute_desktop_vram_mib & bool compute_vram_mib MUST fail closed (no silent empty anomalies).
+        anoms_bool_vram = evaluate_telemetry_anomalies(
+            start_gpu={
+                "non_compute_desktop_vram_mib": True,
+                "gpu_processes_queried": False,
+                "graphics_processes": [],
+                "clocks_event_reasons": {},
+            },
+            end_gpu={
+                "non_compute_desktop_vram_mib": None,
+                "compute_vram_mib": True,
+                "graphics_processes": None,
+                "clocks_event_reasons": {},
+            },
+            max_desktop_vram_mib=0,
+            host_os="linux",
+        )
+        self.assertIn("INVALID_TELEMETRY_TYPE:start:non_compute_desktop_vram_mib", anoms_bool_vram)
+        self.assertIn("INVALID_TELEMETRY_TYPE:end:compute_vram_mib", anoms_bool_vram)
+
+        # Bool / zero / negative max_linux_kmd_baseline_mib and non-bool gpu_processes_queried=1 must reject baseline.
+        for bad_cap, bad_q in ((True, True), (0, True), (-1, True), (4, 1)):
+            anoms_cap = evaluate_telemetry_anomalies(
+                start_gpu={
+                    "non_compute_desktop_vram_mib": 1,
+                    "gpu_processes_queried": bad_q,
+                    "graphics_processes": [],
+                    "clocks_event_reasons": {},
+                },
+                end_gpu=None,
+                max_desktop_vram_mib=0,
+                host_os="linux",
+                max_linux_kmd_baseline_mib=bad_cap,  # type: ignore[arg-type]
+            )
+            self.assertTrue(
+                any(a.startswith("WDDM_OR_DESKTOP_VRAM_NONZERO:start:") for a in anoms_cap),
+                msg=f"expected WDDM_OR_DESKTOP_VRAM_NONZERO for cap={bad_cap!r}, q={bad_q!r}",
+            )
+
+        # Lingering end compute VRAM > 0 triggers LINGERING_COMPUTE_VRAM_NONZERO; None stays clean.
+        anoms_linger = evaluate_telemetry_anomalies(
+            start_gpu=None,
+            end_gpu={"compute_vram_mib": 128, "clocks_event_reasons": {}},
+            max_desktop_vram_mib=0,
+            host_os="linux",
+        )
+        self.assertEqual(anoms_linger, ["LINGERING_COMPUTE_VRAM_NONZERO:end:128MiB"])
+        anoms_end_none = evaluate_telemetry_anomalies(
+            start_gpu=None,
+            end_gpu={"compute_vram_mib": None, "clocks_event_reasons": {}},
+            max_desktop_vram_mib=0,
+            host_os="linux",
+        )
+        self.assertEqual(anoms_end_none, [])
 
 
 if __name__ == "__main__":

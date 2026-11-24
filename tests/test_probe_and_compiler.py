@@ -13,11 +13,14 @@ import unittest
 from ml_os.adapt import load_profile
 from ml_os.compiler import compile_profile, verify_compiled_directory
 from ml_os.probe import (
+    compute_linux_kmd_baseline_mib,
+    extract_graphics_processes,
     parse_nvidia_smi_pids,
     parse_windows_text_inventory,
     probe_host,
     probe_linux,
     probe_macos,
+    probe_nvidia_gpu_processes,
     probe_windows,
 )
 
@@ -193,8 +196,10 @@ class TestProbeAndCompiler(unittest.TestCase):
         self.assertTrue(ok_mixed)
         self.assertEqual(len(procs_mixed), 2)
         self.assertEqual(procs_mixed[0]["type"], "G")
+        self.assertEqual(procs_mixed[0]["process_name"], "/usr/lib/Xorg")
         self.assertEqual(procs_mixed[0]["used_gpu_memory_mib"], 18)
         self.assertEqual(procs_mixed[1]["type"], "C")
+        self.assertEqual(procs_mixed[1]["process_name"], "/usr/bin/python3")
 
         ok_bad, _ = parse_nvidia_smi_pids(
             "GPU 00000000:01:00.0\n"
@@ -203,6 +208,113 @@ class TestProbeAndCompiler(unittest.TestCase):
             "            Name                          : /usr/bin/missing-type\n"
         )
         self.assertFalse(ok_bad)
+
+        # MLOS-UX-01: All five fail-open Processes section bypasses + per-GPU / PID / unknown-key checks.
+        for bad_pids in (
+            "GPU 00000000:01:00.0\n    Processes\n",
+            "GPU 00000000:01:00.0\n    Processes\n        Not Supported\n",
+            "GPU 00000000:01:00.0\n    Processes\n        PID : 1200\n            Type : G\n",
+            "GPU 00000000:01:00.0\n    Processes\n        GPU instance ID : N/A\n        Compute instance ID : N/A\n",
+            "GPU 00000000:01:00.0\n    Processes : None\nGPU 00000000:02:00.0\n",
+            "GPU 00000000:01:00.0\nGPU 00000000:02:00.0\n    Processes : None\n",
+            "GPU 00000000:01:00.0\n    Processes\n            Type : G\n",
+            "GPU 00000000:01:00.0\n    Processes\n            Name : /usr/bin/orphan\n",
+            "GPU 00000000:01:00.0\n    Processes\n            Used GPU Memory : 4 MiB\n",
+            "GPU 00000000:01:00.0\n    Processes\n        Process ID : N/A\n            Type : G\n",
+            "GPU 00000000:01:00.0\n    Processes\n        Process ID : -1\n            Type : G\n",
+            "GPU 00000000:01:00.0\n    Processes\n        Process ID : 10\n            Type :   \n",
+            "GPU 00000000:01:00.0\n    Processes\n        Process ID : 10\n            Type : G\n    Processes\n",
+            "GPU 00000000:01:00.0\n    Processes\n        Process ID : 10\n    Processes : None\n",
+            "GPU 00000000:01:00.0\n    Processes\n        Process ID : 10\nGPU 00000000:02:00.0\n    Processes : None\n",
+            "GPU 00000000:01:00.0\n    Processes\n        Process ID : 10\n            Type : G\n            Unexpected Key : 99\n",
+            "GPU 00000000:01:00.0\n    Processes\nGPU 00000000:02:00.0\n    Processes : None\n",
+        ):
+            ok_fail, procs_fail = parse_nvidia_smi_pids(bad_pids)
+            self.assertFalse(ok_fail, msg=f"expected fail-closed for {bad_pids!r}")
+            self.assertEqual(procs_fail, ())
+
+        # Valid boundary cases: Attached GPUs col-0 header, PID=0, blank Name, N/A Used GPU Memory, multi-GPU valid.
+        ok_edge, procs_edge = parse_nvidia_smi_pids(
+            "Attached GPUs : 2\n"
+            "GPU 00000000:01:00.0\n"
+            "    Processes\n"
+            "        GPU instance ID                   : N/A\n"
+            "        Compute instance ID               : N/A\n"
+            "        Process ID                        : 0\n"
+            "            Type                          : C\n"
+            "            Name                          :    \n"
+            "            Used GPU Memory               : N/A\n"
+            "GPU 00000000:02:00.0\n"
+            "    Processes                             : None\n"
+        )
+        self.assertTrue(ok_edge)
+        self.assertEqual(len(procs_edge), 1)
+        self.assertEqual(procs_edge[0]["pid"], 0)
+        self.assertEqual(procs_edge[0]["type"], "C")
+        self.assertIsNone(procs_edge[0]["process_name"])
+        self.assertIsNone(procs_edge[0]["used_gpu_memory_mib"])
+
+        # probe_nvidia_gpu_processes: non-zero rc with valid stdout OR rc=0 with whitespace-only stdout must fail closed.
+        ok_rc1, p_rc1 = probe_nvidia_gpu_processes(
+            runner=lambda _cmd: (1, "GPU 00000000:01:00.0\n    Processes : None\n", "")
+        )
+        self.assertFalse(ok_rc1)
+        self.assertEqual(p_rc1, ())
+        ok_empty, p_empty = probe_nvidia_gpu_processes(runner=lambda _cmd: (0, "   \n", ""))
+        self.assertFalse(ok_empty)
+        self.assertEqual(p_empty, ())
+
+        # extract_graphics_processes: pure C excluded, G / C+G / None / missing type fail closed as graphics.
+        gfx = extract_graphics_processes(
+            [
+                {"pid": 1, "type": "C"},
+                {"pid": 2, "type": " c "},
+                {"pid": 3, "type": "G"},
+                {"pid": 4, "type": None},
+                {"pid": 5},
+            ]
+        )
+        self.assertEqual([g["pid"] for g in gfx], [3, 4, 5])
+
+        # compute_linux_kmd_baseline_mib: strict boundaries (1..4 OK, <=0 / >4 / bool / non-linux -> 0).
+        self.assertEqual(
+            compute_linux_kmd_baseline_mib(
+                host_os="linux",
+                desktop_vram_mib=1,
+                gpu_processes_queried=True,
+                graphics_processes=(),
+                max_baseline_mib=4,
+            ),
+            1,
+        )
+        self.assertEqual(
+            compute_linux_kmd_baseline_mib(
+                host_os="linux",
+                desktop_vram_mib=4,
+                gpu_processes_queried=True,
+                graphics_processes=(),
+                max_baseline_mib=4,
+            ),
+            4,
+        )
+        for bad_kw in (
+            dict(host_os="windows", desktop_vram_mib=2, gpu_processes_queried=True, graphics_processes=[]),
+            dict(host_os="linux", desktop_vram_mib=2, gpu_processes_queried=False, graphics_processes=[]),
+            dict(host_os="linux", desktop_vram_mib=2, gpu_processes_queried=1, graphics_processes=[]),
+            dict(host_os="linux", desktop_vram_mib=2, gpu_processes_queried=True, graphics_processes=[{"pid": 1, "type": "G"}]),
+            dict(host_os="linux", desktop_vram_mib=2, gpu_processes_queried=True, graphics_processes=""),
+            dict(host_os="linux", desktop_vram_mib=0, gpu_processes_queried=True, graphics_processes=[]),
+            dict(host_os="linux", desktop_vram_mib=-1, gpu_processes_queried=True, graphics_processes=[]),
+            dict(host_os="linux", desktop_vram_mib=5, gpu_processes_queried=True, graphics_processes=[]),
+            dict(host_os="linux", desktop_vram_mib=True, gpu_processes_queried=True, graphics_processes=[]),
+            dict(host_os="linux", desktop_vram_mib=1, gpu_processes_queried=True, graphics_processes=[], max_baseline_mib=True),
+            dict(host_os="linux", desktop_vram_mib=1, gpu_processes_queried=True, graphics_processes=[], max_baseline_mib=-1),
+        ):
+            self.assertEqual(
+                compute_linux_kmd_baseline_mib(**bad_kw),  # type: ignore[arg-type]
+                0,
+                msg=f"expected 0 baseline for {bad_kw!r}",
+            )
 
         omarchy_lua = REPO_ROOT / "docs" / "omarchy-4.5-ux582hs-monitors.lua"
         self.assertTrue(omarchy_lua.is_file())
